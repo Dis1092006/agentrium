@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { createProgram } from "../../../src/cli/index.js";
-import { findGitRepos, generateAgentforgeMd } from "../../../src/workspace/manager.js";
+import { findGitRepos, generateAgentriumMd } from "../../../src/workspace/manager.js";
 import fs from "fs";
 import path from "path";
 import os from "os";
@@ -23,7 +23,7 @@ describe("init command logic", () => {
   let tmpDir: string;
 
   beforeEach(() => {
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "agentforge-init-"));
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "agentrium-init-"));
   });
 
   afterEach(() => {
@@ -38,7 +38,7 @@ describe("init command logic", () => {
     const repos = findGitRepos(tmpDir);
     expect(repos).toHaveLength(1);
 
-    const config = generateAgentforgeMd("my-project", [
+    const config = generateAgentriumMd("my-project", [
       { name: "my-project", path: repoDir, description: "" },
     ]);
     expect(config).toContain("# Workspace: my-project");

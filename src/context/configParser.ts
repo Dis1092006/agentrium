@@ -1,6 +1,6 @@
 import type { WorkspaceConfig, RepositoryRef, PipelineSettings, KnowledgeSource } from "./types.js";
 
-export function parseAgentforgeMd(content: string): WorkspaceConfig {
+export function parseAgentriumMd(content: string): WorkspaceConfig {
   const name = parseWorkspaceName(content);
   const repositories = parseRepositories(content);
   const techStack = parseBulletList(content, "Tech Stack");

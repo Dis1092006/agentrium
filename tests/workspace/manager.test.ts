@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import {
   findGitRepos,
-  generateAgentforgeMd,
+  generateAgentriumMd,
   getWorkspacesDir,
 } from "../../src/workspace/manager.js";
 import fs from "fs";
@@ -12,7 +12,7 @@ describe("workspace manager", () => {
   let tmpDir: string;
 
   beforeEach(() => {
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "agentforge-ws-"));
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "agentrium-ws-"));
   });
 
   afterEach(() => {
@@ -32,8 +32,8 @@ describe("workspace manager", () => {
     expect(repos.map((r) => path.basename(r)).sort()).toEqual(["repo1", "repo2"]);
   });
 
-  it("generates AGENTFORGE.md content", () => {
-    const content = generateAgentforgeMd("my-workspace", [
+  it("generates AGENTRIUM.md content", () => {
+    const content = generateAgentriumMd("my-workspace", [
       { name: "api", path: "/workspace/api", description: "" },
       { name: "web", path: "/workspace/web", description: "" },
     ]);
@@ -46,7 +46,7 @@ describe("workspace manager", () => {
 
   it("returns correct workspaces directory", () => {
     const dir = getWorkspacesDir();
-    expect(dir).toContain(".agentforge");
+    expect(dir).toContain(".agentrium");
     expect(dir).toContain("workspaces");
   });
 });

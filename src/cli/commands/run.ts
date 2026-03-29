@@ -3,7 +3,7 @@ import path from "path";
 import chalk from "chalk";
 import ora from "ora";
 import { loadWorkspaceConfig, listWorkspaces, getWorkspacesDir } from "../../workspace/manager.js";
-import { parseAgentforgeMd } from "../../context/configParser.js";
+import { parseAgentriumMd } from "../../context/configParser.js";
 import { analyzeRepo } from "../../context/repoAnalyzer.js";
 import { buildContextPrompt } from "../../context/contextBuilder.js";
 import { createProductManager } from "../../agents/productManager.js";
@@ -21,7 +21,7 @@ export function registerRunCommand(program: Command): void {
       // 1. Find workspace
       const workspaceName = options.workspace ?? detectWorkspace();
       if (!workspaceName) {
-        console.log(chalk.red("No workspace found. Run `agentforge init` first."));
+        console.log(chalk.red("No workspace found. Run `agentrium init` first."));
         process.exit(1);
       }
 
@@ -32,7 +32,7 @@ export function registerRunCommand(program: Command): void {
       }
 
       // 2. Parse config and analyze repos
-      const workspaceConfig = parseAgentforgeMd(configContent);
+      const workspaceConfig = parseAgentriumMd(configContent);
       const spinner = ora("Analyzing repositories...").start();
 
       const repos = [];
@@ -88,7 +88,7 @@ function detectWorkspace(): string | null {
   for (const ws of workspaces) {
     const configContent = loadWorkspaceConfig(ws);
     if (!configContent) continue;
-    const wsConfig = parseAgentforgeMd(configContent);
+    const wsConfig = parseAgentriumMd(configContent);
     const match = wsConfig.repositories.some((repo) => {
       const expanded = repo.path.replace(/^~/, process.env.HOME ?? "~");
       return cwd === expanded || cwd.startsWith(expanded + path.sep);

@@ -5,7 +5,7 @@ import { registerRunCommand } from "./commands/run.js";
 export function createProgram(): Command {
   const program = new Command();
   program
-    .name("agentforge")
+    .name("agentrium")
     .description("Multi-agent orchestrator for software development")
     .version("0.1.0");
 

@@ -1,12 +1,12 @@
 import { Command } from "commander";
 import path from "path";
 import chalk from "chalk";
-import { findGitRepos, generateAgentforgeMd, saveWorkspace } from "../../workspace/manager.js";
+import { findGitRepos, generateAgentriumMd, saveWorkspace } from "../../workspace/manager.js";
 
 export function registerInitCommand(program: Command): void {
   program
     .command("init")
-    .description("Initialize AgentForge workspace")
+    .description("Initialize Agentrium workspace")
     .option("-n, --name <name>", "Workspace name")
     .option("-d, --dir <directory>", "Directory to scan for repos", ".")
     .action(async (options: { name?: string; dir: string }) => {
@@ -37,14 +37,14 @@ export function registerInitCommand(program: Command): void {
         description: "",
       }));
 
-      const content = generateAgentforgeMd(workspaceName, repos);
+      const content = generateAgentriumMd(workspaceName, repos);
       const savedPath = saveWorkspace(workspaceName, content);
 
       console.log("");
       console.log(chalk.green("Workspace created!"));
       console.log(`  Config: ${chalk.white(savedPath)}`);
       console.log("");
-      console.log(`Edit ${chalk.white("AGENTFORGE.md")} to customize tech stack, conventions, and pipeline settings.`);
-      console.log(`Then run: ${chalk.cyan("agentforge run \"your task description\"")}`);
+      console.log(`Edit ${chalk.white("AGENTRIUM.md")} to customize tech stack, conventions, and pipeline settings.`);
+      console.log(`Then run: ${chalk.cyan("agentrium run \"your task description\"")}`);
     });
 }

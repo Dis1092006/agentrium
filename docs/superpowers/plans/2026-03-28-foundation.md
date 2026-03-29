@@ -1,10 +1,10 @@
-# AgentForge Foundation — Implementation Plan
+# Agentrium Foundation — Implementation Plan
 
 > **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build the foundational layer — project scaffold, CLI skeleton, LLM provider, base agent, context system — so that `agentforge init` works and a test agent can respond with repo context.
+**Goal:** Build the foundational layer — project scaffold, CLI skeleton, LLM provider, base agent, context system — so that `agentrium init` works and a test agent can respond with repo context.
 
-**Architecture:** TypeScript ESM project with commander for CLI. Claude Agent SDK (`@anthropic-ai/claude-agent-sdk`) powers agent execution. Context is assembled from AGENTFORGE.md config + auto-analysis of repos. Each agent is a class extending BaseAgent with a system prompt, allowed tools, and output schema.
+**Architecture:** TypeScript ESM project with commander for CLI. Claude Agent SDK (`@anthropic-ai/claude-agent-sdk`) powers agent execution. Context is assembled from AGENTRIUM.md config + auto-analysis of repos. Each agent is a class extending BaseAgent with a system prompt, allowed tools, and output schema.
 
 **Tech Stack:** Node.js 22, TypeScript, ESM, commander, @anthropic-ai/claude-agent-sdk, simple-git, chalk, ora, vitest
 
@@ -23,7 +23,7 @@
 - [ ] **Step 1: Initialize the project**
 
 ```bash
-cd ~/workspace/projects/ai/agentforge
+cd ~/workspace/projects/ai/agentrium
 npm init -y
 ```
 
@@ -74,7 +74,7 @@ Add to package.json:
 {
   "type": "module",
   "bin": {
-    "agentforge": "./dist/cli/index.js"
+    "agentrium": "./dist/cli/index.js"
   },
   "scripts": {
     "build": "tsc",
@@ -154,7 +154,7 @@ import { registerRunCommand } from "./commands/run.js";
 export function createProgram(): Command {
   const program = new Command();
   program
-    .name("agentforge")
+    .name("agentrium")
     .description("Multi-agent orchestrator for software development")
     .version("0.1.0");
 
@@ -177,9 +177,9 @@ import { Command } from "commander";
 export function registerInitCommand(program: Command): void {
   program
     .command("init")
-    .description("Initialize AgentForge workspace")
+    .description("Initialize Agentrium workspace")
     .action(async () => {
-      console.log("agentforge init — not yet implemented");
+      console.log("agentrium init — not yet implemented");
     });
 }
 ```
@@ -196,7 +196,7 @@ export function registerRunCommand(program: Command): void {
     .description("Run a task through the agent pipeline")
     .argument("<task>", "Task description")
     .action(async (task: string) => {
-      console.log(`agentforge run "${task}" — not yet implemented`);
+      console.log(`agentrium run "${task}" — not yet implemented`);
     });
 }
 ```
@@ -222,7 +222,7 @@ git commit -m "feat: add CLI skeleton with init and run command stubs"
 
 ## Chunk 2: Context System
 
-### Task 3: AGENTFORGE.md config parser
+### Task 3: AGENTRIUM.md config parser
 
 **Files:**
 - Create: `src/context/configParser.ts`
@@ -490,7 +490,7 @@ Expected: PASS (5 tests)
 
 ```bash
 git add src/context/ tests/context/
-git commit -m "feat: add AGENTFORGE.md config parser"
+git commit -m "feat: add AGENTRIUM.md config parser"
 ```
 
 ---
@@ -515,7 +515,7 @@ describe("detectStack", () => {
   let tmpDir: string;
 
   beforeEach(() => {
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "agentforge-test-"));
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "agentrium-test-"));
   });
 
   afterEach(() => {
@@ -1100,7 +1100,7 @@ describe("workspace manager", () => {
   let tmpDir: string;
 
   beforeEach(() => {
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "agentforge-ws-"));
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "agentrium-ws-"));
   });
 
   afterEach(() => {
@@ -1121,7 +1121,7 @@ describe("workspace manager", () => {
     expect(repos.map((r) => path.basename(r)).sort()).toEqual(["repo1", "repo2"]);
   });
 
-  it("generates AGENTFORGE.md content", () => {
+  it("generates AGENTRIUM.md content", () => {
     const content = generateAgentforgeMd("my-workspace", [
       { name: "api", path: "/workspace/api", description: "" },
       { name: "web", path: "/workspace/web", description: "" },
@@ -1135,7 +1135,7 @@ describe("workspace manager", () => {
 
   it("returns correct workspaces directory", () => {
     const dir = getWorkspacesDir();
-    expect(dir).toContain(".agentforge");
+    expect(dir).toContain(".agentrium");
     expect(dir).toContain("workspaces");
   });
 });
@@ -1156,7 +1156,7 @@ import os from "os";
 import type { RepositoryRef } from "../context/types.js";
 
 export function getWorkspacesDir(): string {
-  return path.join(os.homedir(), ".agentforge", "workspaces");
+  return path.join(os.homedir(), ".agentrium", "workspaces");
 }
 
 export function findGitRepos(directory: string): string[] {
@@ -1198,13 +1198,13 @@ export function generateAgentforgeMd(name: string, repos: RepositoryRef[]): stri
 export function saveWorkspace(name: string, content: string): string {
   const wsDir = path.join(getWorkspacesDir(), name);
   fs.mkdirSync(wsDir, { recursive: true });
-  const filePath = path.join(wsDir, "AGENTFORGE.md");
+  const filePath = path.join(wsDir, "AGENTRIUM.md");
   fs.writeFileSync(filePath, content);
   return filePath;
 }
 
 export function loadWorkspaceConfig(name: string): string | null {
-  const filePath = path.join(getWorkspacesDir(), name, "AGENTFORGE.md");
+  const filePath = path.join(getWorkspacesDir(), name, "AGENTRIUM.md");
   try {
     return fs.readFileSync(filePath, "utf-8");
   } catch {
@@ -1235,7 +1235,7 @@ git commit -m "feat: add workspace manager for multi-repo support"
 
 ---
 
-### Task 9: Implement `agentforge init` command
+### Task 9: Implement `agentrium init` command
 
 **Files:**
 - Modify: `src/cli/commands/init.ts`
@@ -1259,7 +1259,7 @@ describe("init command logic", () => {
   let tmpDir: string;
 
   beforeEach(() => {
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "agentforge-init-"));
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "agentrium-init-"));
   });
 
   afterEach(() => {
@@ -1300,7 +1300,7 @@ import { findGitRepos, generateAgentforgeMd, saveWorkspace } from "../../workspa
 export function registerInitCommand(program: Command): void {
   program
     .command("init")
-    .description("Initialize AgentForge workspace")
+    .description("Initialize Agentrium workspace")
     .option("-n, --name <name>", "Workspace name")
     .option("-d, --dir <directory>", "Directory to scan for repos", ".")
     .action(async (options: { name?: string; dir: string }) => {
@@ -1339,22 +1339,22 @@ export function registerInitCommand(program: Command): void {
       console.log(chalk.green("Workspace created!"));
       console.log(`  Config: ${chalk.white(savedPath)}`);
       console.log("");
-      console.log(`Edit ${chalk.white("AGENTFORGE.md")} to customize tech stack, conventions, and pipeline settings.`);
-      console.log(`Then run: ${chalk.cyan("agentforge run \"your task description\"")}`);
+      console.log(`Edit ${chalk.white("AGENTRIUM.md")} to customize tech stack, conventions, and pipeline settings.`);
+      console.log(`Then run: ${chalk.cyan("agentrium run \"your task description\"")}`);
     });
 }
 ```
 
 - [ ] **Step 4: Verify init command works manually**
 
-Run: `npx tsx src/cli/index.ts init --dir ~/workspace/projects/ai/agentforge`
+Run: `npx tsx src/cli/index.ts init --dir ~/workspace/projects/ai/agentrium`
 Expected: Shows found repos, creates workspace config
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add src/cli/commands/init.ts tests/cli/commands/init.test.ts
-git commit -m "feat: implement agentforge init with repo detection and workspace creation"
+git commit -m "feat: implement agentrium init with repo detection and workspace creation"
 ```
 
 ---
@@ -1382,7 +1382,7 @@ describe("ArtifactStore", () => {
   let store: ArtifactStore;
 
   beforeEach(() => {
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "agentforge-artifacts-"));
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "agentrium-artifacts-"));
     store = new ArtifactStore(tmpDir);
   });
 
@@ -1529,7 +1529,7 @@ git commit -m "feat: add artifact store for saving pipeline stage outputs"
 
 ---
 
-### Task 11: Wire up `agentforge run` end-to-end with Product Manager
+### Task 11: Wire up `agentrium run` end-to-end with Product Manager
 
 **Files:**
 - Modify: `src/cli/commands/run.ts`
@@ -1561,7 +1561,7 @@ export function registerRunCommand(program: Command): void {
       // 1. Find workspace
       const workspaceName = options.workspace ?? detectWorkspace();
       if (!workspaceName) {
-        console.log(chalk.red("No workspace found. Run `agentforge init` first."));
+        console.log(chalk.red("No workspace found. Run `agentrium init` first."));
         process.exit(1);
       }
 
@@ -1644,7 +1644,7 @@ Expected: No errors
 
 ```bash
 git add src/cli/commands/run.ts
-git commit -m "feat: implement agentforge run with Product Manager agent"
+git commit -m "feat: implement agentrium run with Product Manager agent"
 ```
 
 ---
@@ -1664,12 +1664,12 @@ Expected: Clean build, dist/ directory created
 - [ ] **Step 3: Verify CLI help**
 
 Run: `npx tsx src/cli/index.ts --help`
-Expected: Shows agentforge with init and run commands
+Expected: Shows agentrium with init and run commands
 
 - [ ] **Step 4: Verify init works**
 
-Run: `npx tsx src/cli/index.ts init --dir ~/workspace/projects/ai/agentforge --name agentforge-test`
-Expected: Creates workspace config at ~/.agentforge/workspaces/agentforge-test/AGENTFORGE.md
+Run: `npx tsx src/cli/index.ts init --dir ~/workspace/projects/ai/agentrium --name agentrium-test`
+Expected: Creates workspace config at ~/.agentrium/workspaces/agentrium-test/AGENTRIUM.md
 
 - [ ] **Step 5: Commit final state**
 

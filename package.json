@@ -1,11 +1,11 @@
 {
-  "name": "agentforge",
+  "name": "agentrium",
   "version": "0.1.0",
   "description": "",
   "type": "module",
   "main": "index.js",
   "bin": {
-    "agentforge": "./dist/cli/index.js"
+    "agentrium": "./dist/cli/index.js"
   },
   "directories": {
     "doc": "docs"

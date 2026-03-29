@@ -9,7 +9,7 @@ describe("ArtifactStore", () => {
   let store: ArtifactStore;
 
   beforeEach(() => {
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "agentforge-artifacts-"));
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "agentrium-artifacts-"));
     store = new ArtifactStore(tmpDir);
   });
 

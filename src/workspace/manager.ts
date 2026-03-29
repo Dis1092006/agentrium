@@ -4,7 +4,7 @@ import os from "os";
 import type { RepositoryRef } from "../context/types.js";
 
 export function getWorkspacesDir(): string {
-  return path.join(os.homedir(), ".agentforge", "workspaces");
+  return path.join(os.homedir(), ".agentrium", "workspaces");
 }
 
 export function findGitRepos(directory: string): string[] {
@@ -14,7 +14,7 @@ export function findGitRepos(directory: string): string[] {
     .map((e) => path.join(directory, e.name));
 }
 
-export function generateAgentforgeMd(name: string, repos: RepositoryRef[]): string {
+export function generateAgentriumMd(name: string, repos: RepositoryRef[]): string {
   const lines: string[] = [];
 
   lines.push(`# Workspace: ${name}`);
@@ -46,13 +46,13 @@ export function generateAgentforgeMd(name: string, repos: RepositoryRef[]): stri
 export function saveWorkspace(name: string, content: string): string {
   const wsDir = path.join(getWorkspacesDir(), name);
   fs.mkdirSync(wsDir, { recursive: true });
-  const filePath = path.join(wsDir, "AGENTFORGE.md");
+  const filePath = path.join(wsDir, "AGENTRIUM.md");
   fs.writeFileSync(filePath, content);
   return filePath;
 }
 
 export function loadWorkspaceConfig(name: string): string | null {
-  const filePath = path.join(getWorkspacesDir(), name, "AGENTFORGE.md");
+  const filePath = path.join(getWorkspacesDir(), name, "AGENTRIUM.md");
   try {
     return fs.readFileSync(filePath, "utf-8");
   } catch {

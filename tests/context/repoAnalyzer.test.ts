@@ -8,7 +8,7 @@ describe("detectStack", () => {
   let tmpDir: string;
 
   beforeEach(() => {
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "agentforge-test-"));
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "agentrium-test-"));
   });
 
   afterEach(() => {
