@@ -86,9 +86,16 @@ function detectWorkspace(): string | null {
 
   const cwd = process.cwd();
   for (const ws of workspaces) {
-    const config = loadWorkspaceConfig(ws);
-    if (config && config.includes(cwd)) return ws;
+    const configContent = loadWorkspaceConfig(ws);
+    if (!configContent) continue;
+    const wsConfig = parseAgentforgeMd(configContent);
+    const match = wsConfig.repositories.some((repo) => {
+      const expanded = repo.path.replace(/^~/, process.env.HOME ?? "~");
+      return cwd === expanded || cwd.startsWith(expanded + path.sep);
+    });
+    if (match) return ws;
   }
 
-  return workspaces[0];
+  console.log(chalk.yellow(`Multiple workspaces found: ${workspaces.join(", ")}. Use --workspace to specify.`));
+  return null;
 }

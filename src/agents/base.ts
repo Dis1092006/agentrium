@@ -36,6 +36,10 @@ export class BaseAgent {
       }
     }
 
+    if (!result) {
+      throw new Error(`Agent "${this.name}" produced no output for task: ${taskDescription.slice(0, 100)}`);
+    }
+
     return { artifact: result, metadata: { agent: this.name } };
   }
 }
