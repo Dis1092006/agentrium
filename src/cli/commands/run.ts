@@ -1,3 +1,4 @@
+// src/cli/commands/run.ts
 import { Command } from "commander";
 import path from "path";
 import chalk from "chalk";
@@ -6,9 +7,10 @@ import { loadWorkspaceConfig, listWorkspaces, getWorkspacesDir } from "../../wor
 import { parseAgentriumMd } from "../../context/configParser.js";
 import { analyzeRepo } from "../../context/repoAnalyzer.js";
 import { buildContextPrompt } from "../../context/contextBuilder.js";
-import { createProductManager } from "../../agents/productManager.js";
 import { ArtifactStore } from "../../artifacts/store.js";
+import { PipelineRunner } from "../../pipeline/runner.js";
 import type { FullContext } from "../../context/types.js";
+import type { PipelineConfig, Stage } from "../../pipeline/types.js";
 import fs from "fs";
 
 export function registerRunCommand(program: Command): void {
@@ -17,7 +19,9 @@ export function registerRunCommand(program: Command): void {
     .description("Run a task through the agent pipeline")
     .argument("<task>", "Task description")
     .option("-w, --workspace <name>", "Workspace name")
-    .action(async (task: string, options: { workspace?: string }) => {
+    .option("--no-checkpoints", "Skip all checkpoints")
+    .option("--include <stages...>", "Include optional stages (design, documentation)")
+    .action(async (task: string, options: { workspace?: string; checkpoints: boolean; include?: string[] }) => {
       // 1. Find workspace
       const workspaceName = options.workspace ?? detectWorkspace();
       if (!workspaceName) {
@@ -47,35 +51,25 @@ export function registerRunCommand(program: Command): void {
       const fullContext: FullContext = { workspace: workspaceConfig, repos };
       const contextPrompt = buildContextPrompt(fullContext);
 
-      // 3. Create run
+      // 3. Create run and save intake
       const store = new ArtifactStore(path.join(getWorkspacesDir(), workspaceName, "runs"));
       const runId = store.createRun(task);
+      store.saveArtifact(runId, "intake", `# Task\n\n${task}\n\n# Context\n\n${contextPrompt}`);
       console.log(chalk.blue(`Run: ${runId}`));
 
-      // 4. Save intake
-      store.saveArtifact(runId, "intake", `# Task\n\n${task}\n\n# Context\n\n${contextPrompt}`);
+      // 4. Build pipeline config
+      const pipelineConfig: PipelineConfig = {
+        checkpoints: options.checkpoints
+          ? workspaceConfig.pipelineSettings.checkpoints as PipelineConfig["checkpoints"]
+          : "none",
+        skipStages: workspaceConfig.pipelineSettings.skipStages as Stage[],
+      };
 
-      // 5. Run Product Manager agent
-      const pmSpinner = ora("Product Manager analyzing task...").start();
-      try {
-        const pm = createProductManager();
-        const result = await pm.run(contextPrompt, task);
-        store.saveArtifact(runId, "analysis", result.artifact);
-        pmSpinner.succeed("Analysis complete");
+      const includeOptional = (options.include ?? []) as Stage[];
 
-        console.log("");
-        console.log(chalk.green("=== Analysis ==="));
-        console.log(result.artifact);
-        console.log("");
-        console.log(chalk.gray(`Artifact saved to: ${runId}/02-analysis.md`));
-      } catch (error) {
-        pmSpinner.fail("Analysis failed");
-        store.updateStatus(runId, "failed");
-        throw error;
-      }
-
-      store.updateStatus(runId, "completed");
-      console.log(chalk.green(`\nRun ${runId} completed (analysis only — pipeline stages coming in Plan 2).`));
+      // 5. Run pipeline
+      const runner = new PipelineRunner(store, runId, contextPrompt);
+      await runner.runPipeline(task, pipelineConfig, includeOptional);
     });
 }
 
