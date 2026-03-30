@@ -1,4 +1,4 @@
-# AgentForge — Design Document
+# Agentrium — Design Document
 
 Multi-agent orchestrator for software development: from task to approved PR.
 
@@ -33,7 +33,7 @@ INTAKE -> ANALYSIS -> [DESIGN] -> ARCHITECTURE -> IMPLEMENTATION -> TESTING -> [
 
 ### Layer 1: Project config (static)
 
-`AGENTFORGE.md` in the workspace (not in repo root). Markdown format, human-readable:
+`AGENTRIUM.md` in the workspace (not in repo root). Markdown format, human-readable:
 
 ```markdown
 # Workspace: math-on-canvas
@@ -70,7 +70,7 @@ On each run, Project Manager scans repos for:
 
 ### Layer 3: External sources (pluggable)
 
-Via MCP servers: Notion, Confluence, Jira, Obsidian, or any other MCP-compatible source. Configured in AGENTFORGE.md Knowledge Sources section.
+Via MCP servers: Notion, Confluence, Jira, Obsidian, or any other MCP-compatible source. Configured in AGENTRIUM.md Knowledge Sources section.
 
 ## Agent Architecture
 
@@ -97,7 +97,7 @@ Via MCP servers: Notion, Confluence, Jira, Obsidian, or any other MCP-compatible
 ### Artifacts
 
 ```
-.agentforge/runs/<run-id>/
+.agentrium/runs/<run-id>/
   ├── 01-intake.md
   ├── 02-analysis.md
   ├── 03-design.md           # optional
@@ -111,7 +111,7 @@ Via MCP servers: Notion, Confluence, Jira, Obsidian, or any other MCP-compatible
 
 ### Handoff mechanism
 
-Project Manager (state machine): determine stage -> build context (AGENTFORGE.md + repo context + previous artifacts) -> launch sub-agent via Claude Agent SDK -> receive artifact -> save -> checkpoint if configured -> next stage.
+Project Manager (state machine): determine stage -> build context (AGENTRIUM.md + repo context + previous artifacts) -> launch sub-agent via Claude Agent SDK -> receive artifact -> save -> checkpoint if configured -> next stage.
 
 ## Code Review Process
 
@@ -144,18 +144,18 @@ On Request changes: Arbiter produces mandatory fix list -> Software Engineer fix
 ## CLI Interface
 
 ```bash
-agentforge init                          # interactive workspace setup
-agentforge run "task description"        # run from text
-agentforge run --from issue github:owner/repo#123
-agentforge run --from file spec.md
-agentforge status                        # current stage, artifacts
-agentforge approve                       # approve checkpoint
-agentforge reject "reason"               # reject with comment
-agentforge abort                         # abort run
-agentforge runs                          # list all runs
-agentforge show <run-id>                 # run details
-agentforge show <run-id> --stage 4       # specific artifact
-agentforge workspaces                    # list workspaces
+agentrium init                          # interactive workspace setup
+agentrium run "task description"        # run from text
+agentrium run --from issue github:owner/repo#123
+agentrium run --from file spec.md
+agentrium status                        # current stage, artifacts
+agentrium approve                       # approve checkpoint
+agentrium reject "reason"               # reject with comment
+agentrium abort                         # abort run
+agentrium runs                          # list all runs
+agentrium show <run-id>                 # run details
+agentrium show <run-id> --stage 4       # specific artifact
+agentrium workspaces                    # list workspaces
 ```
 
 ### Checkpoint UI
@@ -164,11 +164,11 @@ Interactive prompt at each checkpoint: [a] Approve, [r] Reject, [e] Edit & resub
 
 ## Workspace Model
 
-Workspace = logical grouping of repos, not physical directory structure. Stored in `~/.agentforge/workspaces/<name>/AGENTFORGE.md`.
+Workspace = logical grouping of repos, not physical directory structure. Stored in `~/.agentrium/workspaces/<name>/AGENTRIUM.md`.
 
-`agentforge init` interactively selects repos from current directory. Multiple workspaces can reference repos from the same directory. Single-repo is a workspace with one repo.
+`agentrium init` interactively selects repos from current directory. Multiple workspaces can reference repos from the same directory. Single-repo is a workspace with one repo.
 
-Auto-detection: running `agentforge run` inside a repo that belongs to a workspace uses that workspace automatically.
+Auto-detection: running `agentrium run` inside a repo that belongs to a workspace uses that workspace automatically.
 
 ## Tech Stack (MVP)
 
@@ -182,7 +182,7 @@ Auto-detection: running `agentforge run` inside a repo that belongs to a workspa
 ## Project Structure
 
 ```
-agentforge/
+agentrium/
 ├── src/
 │   ├── cli/
 │   │   ├── index.ts
@@ -231,8 +231,8 @@ agentforge/
 - CLI tool
 - Checkpoint-based pipeline
 - Anthropic (Claude) only
-- Local files + AGENTFORGE.md as context
-- Manual run via `agentforge run`
+- Local files + AGENTRIUM.md as context
+- Manual run via `agentrium run`
 
 ### Phase 2 — Expansion
 - Pluggable LLM providers (OpenAI, Google, local models)
