@@ -68,7 +68,8 @@ export function registerRunCommand(program: Command): void {
       const includeOptional = (options.include ?? []) as Stage[];
 
       // 5. Run pipeline
-      const runner = new PipelineRunner(store, runId, contextPrompt);
+      const maxReviewIterations = workspaceConfig.pipelineSettings.maxReviewIterations;
+      const runner = new PipelineRunner(store, runId, contextPrompt, maxReviewIterations);
       await runner.runPipeline(task, pipelineConfig, includeOptional);
     });
 }
