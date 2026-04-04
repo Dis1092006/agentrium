@@ -2,11 +2,11 @@
 import { Command } from "commander";
 import path from "path";
 import chalk from "chalk";
+import fs from "fs";
 import { getWorkspacesDir, listWorkspaces } from "../../workspace/manager.js";
 import { ArtifactStore, type RunMeta } from "../../artifacts/store.js";
-import { detectWorkspace } from "../utils.js";
 
-export function printRunDetails(meta: RunMeta, store: ArtifactStore): void {
+export function printRunDetails(meta: RunMeta): void {
   const statusColor =
     meta.status === "completed" ? chalk.green :
     meta.status === "failed" ? chalk.red :
@@ -27,13 +27,9 @@ export function printRunDetails(meta: RunMeta, store: ArtifactStore): void {
 
 function findWorkspaceForRun(runId: string): string | null {
   for (const ws of listWorkspaces()) {
-    const store = new ArtifactStore(path.join(getWorkspacesDir(), ws, "runs"));
-    try {
-      store.readMeta(runId);
-      return ws;
-    } catch {
-      // not in this workspace
-    }
+    const runsDir = path.join(getWorkspacesDir(), ws, "runs");
+    const metaPath = path.join(runsDir, runId, "meta.json");
+    if (fs.existsSync(metaPath)) return ws;
   }
   return null;
 }
@@ -55,7 +51,7 @@ export function registerShowCommand(program: Command): void {
 
       if (options.stage) {
         const artifact = store.readArtifact(runId, options.stage);
-        if (!artifact) {
+        if (artifact === null) {
           console.log(chalk.red(`Stage "${options.stage}" not found in run "${runId}".`));
           process.exit(1);
         }
@@ -64,6 +60,6 @@ export function registerShowCommand(program: Command): void {
       }
 
       const meta = store.readMeta(runId);
-      printRunDetails(meta, store);
+      printRunDetails(meta);
     });
 }

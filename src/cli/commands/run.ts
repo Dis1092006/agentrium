@@ -3,7 +3,7 @@ import { Command } from "commander";
 import path from "path";
 import chalk from "chalk";
 import ora from "ora";
-import { loadWorkspaceConfig, listWorkspaces, getWorkspacesDir } from "../../workspace/manager.js";
+import { loadWorkspaceConfig, getWorkspacesDir } from "../../workspace/manager.js";
 import { parseAgentriumMd } from "../../context/configParser.js";
 import { analyzeRepo } from "../../context/repoAnalyzer.js";
 import { buildContextPrompt } from "../../context/contextBuilder.js";

@@ -28,6 +28,6 @@ export function registerStatusCommand(program: Command): void {
       }
 
       console.log(chalk.bold(`Workspace: ${workspaceName}\n`));
-      printRunDetails(runs[0], store);
+      printRunDetails(runs[0]);
     });
 }

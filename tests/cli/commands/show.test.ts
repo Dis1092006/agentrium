@@ -30,6 +30,6 @@ describe("show command", () => {
     store.saveArtifact(runId, "analysis", "# Analysis content");
     store.updateStatus(runId, "completed");
     const meta = store.readMeta(runId);
-    expect(() => printRunDetails(meta, store)).not.toThrow();
+    expect(() => printRunDetails(meta)).not.toThrow();
   });
 });
