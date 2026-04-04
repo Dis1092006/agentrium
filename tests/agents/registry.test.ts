@@ -22,6 +22,21 @@ describe("agent registry", () => {
     expect(agent.name).toBe("qa-engineer");
   });
 
+  it("creates code-reviewer-logic agent by name", () => {
+    const agent = createAgentByName("code-reviewer-logic");
+    expect(agent.name).toBe("code-reviewer-logic");
+  });
+
+  it("creates code-reviewer-security agent by name", () => {
+    const agent = createAgentByName("code-reviewer-security");
+    expect(agent.name).toBe("code-reviewer-security");
+  });
+
+  it("creates review-arbiter agent by name", () => {
+    const agent = createAgentByName("review-arbiter");
+    expect(agent.name).toBe("review-arbiter");
+  });
+
   it("throws for unknown agent name", () => {
     expect(() => createAgentByName("unknown-agent")).toThrow('Unknown agent: "unknown-agent"');
   });
@@ -32,5 +47,8 @@ describe("agent registry", () => {
     expect(names).toContain("architect");
     expect(names).toContain("software-engineer");
     expect(names).toContain("qa-engineer");
+    expect(names).toContain("code-reviewer-logic");
+    expect(names).toContain("code-reviewer-security");
+    expect(names).toContain("review-arbiter");
   });
 });
