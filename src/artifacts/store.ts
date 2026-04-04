@@ -13,7 +13,7 @@ const STAGE_FILES: Record<string, string> = {
   review: "08-review.md",
 };
 
-interface RunMeta {
+export interface RunMeta {
   runId: string;
   task: string;
   status: "running" | "completed" | "failed" | "aborted";
@@ -75,6 +75,24 @@ export class ArtifactStore {
     const meta = this.readMeta(runId);
     meta.status = status;
     this.writeMeta(runId, meta);
+  }
+
+  listRuns(): RunMeta[] {
+    const entries = fs.readdirSync(this.baseDir, { withFileTypes: true });
+    const runs: RunMeta[] = [];
+
+    for (const entry of entries) {
+      if (!entry.isDirectory() || !entry.name.startsWith("run_")) continue;
+      try {
+        runs.push(this.readMeta(entry.name));
+      } catch {
+        // skip corrupt runs
+      }
+    }
+
+    return runs.sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    );
   }
 
   private writeMeta(runId: string, meta: RunMeta): void {
