@@ -3,3 +3,4 @@ dist/
 *.tgz
 .env
 .idea
+.DS_Store

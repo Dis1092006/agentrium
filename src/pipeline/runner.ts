@@ -1,11 +1,13 @@
+// src/pipeline/runner.ts
 import chalk from "chalk";
 import ora from "ora";
-import type { Stage, PipelineConfig, StageResult, CheckpointDecision } from "./types.js";
+import type { Stage, PipelineConfig, StageResult } from "./types.js";
 import { STAGE_ORDER } from "./types.js";
 import { buildPipelineStages, type PlannedStage } from "./pipeline.js";
 import { promptCheckpoint } from "./checkpoint.js";
 import { createAgentByName } from "../agents/registry.js";
 import { ArtifactStore } from "../artifacts/store.js";
+import { ReviewProcess } from "../review/process.js";
 
 const ARTIFACT_STAGES: string[] = ["intake", ...STAGE_ORDER];
 
@@ -13,11 +15,18 @@ export class PipelineRunner {
   private readonly store: ArtifactStore;
   private readonly runId: string;
   private readonly workspaceContext: string;
+  private readonly maxReviewIterations: number;
 
-  constructor(store: ArtifactStore, runId: string, workspaceContext: string) {
+  constructor(
+    store: ArtifactStore,
+    runId: string,
+    workspaceContext: string,
+    maxReviewIterations: number,
+  ) {
     this.store = store;
     this.runId = runId;
     this.workspaceContext = workspaceContext;
+    this.maxReviewIterations = maxReviewIterations;
   }
 
   assembleAgentContext(currentStage: Stage): string {
@@ -51,6 +60,10 @@ export class PipelineRunner {
     return desc;
   }
 
+  isReviewStage(stage: string): boolean {
+    return stage === "review";
+  }
+
   async runPipeline(
     task: string,
     config: PipelineConfig,
@@ -62,7 +75,13 @@ export class PipelineRunner {
     console.log("");
 
     for (const planned of stages) {
-      const result = await this.runStage(planned, task);
+      let result: StageResult | null;
+
+      if (this.isReviewStage(planned.stage)) {
+        result = await this.runReviewStage(planned, task);
+      } else {
+        result = await this.runStage(planned, task);
+      }
 
       if (!result) {
         console.log(chalk.yellow(`Stage "${planned.stage}" was skipped.`));
@@ -116,6 +135,39 @@ export class PipelineRunner {
       };
     } catch (error) {
       spinner.fail(`${planned.stage} failed`);
+      this.store.updateStatus(this.runId, "failed");
+      throw error;
+    }
+  }
+
+  private async runReviewStage(planned: PlannedStage, task: string): Promise<StageResult | null> {
+    const startTime = Date.now();
+
+    try {
+      const reviewProcess = new ReviewProcess(
+        this.store,
+        this.runId,
+        this.workspaceContext,
+        this.maxReviewIterations,
+      );
+
+      const verdict = await reviewProcess.run(task);
+      const durationMs = Date.now() - startTime;
+
+      console.log(
+        chalk.green(`Review complete: ${verdict} (${(durationMs / 1000).toFixed(1)}s)`),
+      );
+
+      const artifact = this.store.readArtifact(this.runId, "review") ?? "";
+
+      return {
+        stage: planned.stage,
+        artifact,
+        agentName: "review-process",
+        durationMs,
+      };
+    } catch (error) {
+      console.log(chalk.red("Review stage failed"));
       this.store.updateStatus(this.runId, "failed");
       throw error;
     }
