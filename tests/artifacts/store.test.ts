@@ -44,4 +44,34 @@ describe("ArtifactStore", () => {
     const meta = store.readMeta(runId);
     expect(meta.status).toBe("completed");
   });
+
+  it("listRuns returns empty array when no runs exist", () => {
+    const emptyDir = path.join(tmpDir, "empty-runs");
+    fs.mkdirSync(emptyDir, { recursive: true });
+    const emptyStore = new ArtifactStore(emptyDir);
+    expect(emptyStore.listRuns()).toEqual([]);
+  });
+
+  it("listRuns returns all runs sorted by createdAt descending", () => {
+    store.createRun("first task");
+    store.createRun("second task");
+
+    const runs = store.listRuns();
+    expect(runs).toHaveLength(2);
+    // verify sorted: first element's createdAt >= second element's createdAt
+    expect(new Date(runs[0].createdAt).getTime()).toBeGreaterThanOrEqual(
+      new Date(runs[1].createdAt).getTime(),
+    );
+  });
+
+  it("listRuns includes task, status, and stage data", () => {
+    const runId = store.createRun("my task");
+    store.saveArtifact(runId, "analysis", "# Analysis");
+    store.updateStatus(runId, "completed");
+
+    const runs = store.listRuns();
+    expect(runs[0].task).toBe("my task");
+    expect(runs[0].status).toBe("completed");
+    expect(runs[0].stages).toHaveProperty("analysis");
+  });
 });
