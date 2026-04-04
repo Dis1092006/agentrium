@@ -37,6 +37,16 @@ describe("agent registry", () => {
     expect(agent.name).toBe("review-arbiter");
   });
 
+  it("creates ux-designer agent by name", () => {
+    const agent = createAgentByName("ux-designer");
+    expect(agent.name).toBe("ux-designer");
+  });
+
+  it("creates technical-writer agent by name", () => {
+    const agent = createAgentByName("technical-writer");
+    expect(agent.name).toBe("technical-writer");
+  });
+
   it("throws for unknown agent name", () => {
     expect(() => createAgentByName("unknown-agent")).toThrow('Unknown agent: "unknown-agent"');
   });
@@ -50,5 +60,7 @@ describe("agent registry", () => {
     expect(names).toContain("code-reviewer-logic");
     expect(names).toContain("code-reviewer-security");
     expect(names).toContain("review-arbiter");
+    expect(names).toContain("ux-designer");
+    expect(names).toContain("technical-writer");
   });
 });

@@ -5,6 +5,8 @@ import { createSoftwareEngineer } from "./softwareEngineer.js";
 import { createQAEngineer } from "./qaEngineer.js";
 import { createLogicReviewer, createSecurityReviewer } from "./codeReviewer.js";
 import { createReviewArbiter } from "./reviewArbiter.js";
+import { createUxDesigner } from "./uxDesigner.js";
+import { createTechnicalWriter } from "./technicalWriter.js";
 
 type AgentFactory = () => BaseAgent;
 
@@ -16,6 +18,8 @@ const AGENT_FACTORIES: Record<string, AgentFactory> = {
   "code-reviewer-logic": createLogicReviewer,
   "code-reviewer-security": createSecurityReviewer,
   "review-arbiter": createReviewArbiter,
+  "ux-designer": createUxDesigner,
+  "technical-writer": createTechnicalWriter,
 };
 
 export function createAgentByName(name: string): BaseAgent {
