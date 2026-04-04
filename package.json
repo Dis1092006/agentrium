@@ -1,24 +1,40 @@
 {
   "name": "agentrium",
   "version": "0.3.0",
-  "description": "",
+  "description": "Multi-agent orchestrator for software development",
   "type": "module",
-  "main": "index.js",
   "bin": {
     "agentrium": "./dist/cli/index.js"
   },
-  "directories": {
-    "doc": "docs"
-  },
+  "files": [
+    "dist",
+    "prompts"
+  ],
   "scripts": {
+    "prepare": "npm run build",
     "build": "tsc",
     "dev": "tsx src/cli/index.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": [
+    "ai",
+    "agents",
+    "cli",
+    "llm",
+    "anthropic",
+    "claude",
+    "developer-tools"
+  ],
+  "author": "Dmitry Samsonov",
   "license": "ISC",
+  "engines": {
+    "node": ">=22"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Dis1092006/agentrium.git"
+  },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.87",
     "chalk": "^5.6.2",
