@@ -1,16 +1,24 @@
 import { Command } from "commander";
 import { registerInitCommand } from "./commands/init.js";
 import { registerRunCommand } from "./commands/run.js";
+import { registerWorkspacesCommand } from "./commands/workspaces.js";
+import { registerRunsCommand } from "./commands/runs.js";
+import { registerShowCommand } from "./commands/show.js";
+import { registerStatusCommand } from "./commands/status.js";
 
 export function createProgram(): Command {
   const program = new Command();
   program
     .name("agentrium")
     .description("Multi-agent orchestrator for software development")
-    .version("0.1.0");
+    .version("0.2.0");
 
   registerInitCommand(program);
   registerRunCommand(program);
+  registerWorkspacesCommand(program);
+  registerRunsCommand(program);
+  registerShowCommand(program);
+  registerStatusCommand(program);
 
   return program;
 }
