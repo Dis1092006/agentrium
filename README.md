@@ -89,8 +89,8 @@ agentrium run "Fix bug" --workspace my-other-ws
 **Checkpoint controls** (shown at each checkpoint):
 - `[a]` Approve — continue to next stage
 - `[r]` Reject — abort the pipeline
-- `[s]` Skip — skip to next stage without saving
-- `[v]` View — print the full artifact
+- `[s]` Skip — skip to the next stage (current stage artifact is still saved)
+- `[v]` View — print the saved artifact for the current stage
 
 ### `agentrium workspaces`
 
