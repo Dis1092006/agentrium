@@ -158,6 +158,24 @@ All run artifacts are saved to:
   meta.json
 ```
 
+## Development
+
+To build and run from source:
+
+```bash
+git clone https://github.com/Dis1092006/agentrium.git
+cd agentrium
+npm install
+npm run build
+npm link
+```
+
+After `npm link`, the `agentrium` command points to your local build. Run tests with:
+
+```bash
+npm test
+```
+
 ## License
 
 ISC
