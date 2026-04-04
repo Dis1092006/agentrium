@@ -11,7 +11,7 @@ export function createProgram(): Command {
   program
     .name("agentrium")
     .description("Multi-agent orchestrator for software development")
-    .version("0.2.0");
+    .version("0.3.0");
 
   registerInitCommand(program);
   registerRunCommand(program);
