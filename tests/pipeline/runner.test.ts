@@ -23,7 +23,7 @@ describe("PipelineRunner", () => {
     store.saveArtifact(runId, "intake", "# Task\nDo something");
     store.saveArtifact(runId, "analysis", "# Analysis\nRequirements here");
 
-    const runner = new PipelineRunner(store, runId, "workspace context");
+    const runner = new PipelineRunner(store, runId, "workspace context", 3);
     const ctx = runner.assembleAgentContext("architecture");
 
     expect(ctx).toContain("workspace context");
@@ -37,7 +37,7 @@ describe("PipelineRunner", () => {
     store.saveArtifact(runId, "analysis", "# Analysis");
     store.saveArtifact(runId, "architecture", "# Architecture");
 
-    const runner = new PipelineRunner(store, runId, "workspace context");
+    const runner = new PipelineRunner(store, runId, "workspace context", 3);
     const ctx = runner.assembleAgentContext("architecture");
 
     expect(ctx).toContain("# Task");
@@ -50,10 +50,17 @@ describe("PipelineRunner", () => {
     store.saveArtifact(runId, "intake", "# Task\nAdd user auth");
     store.saveArtifact(runId, "analysis", "# Analysis\nReq 1: Login page");
 
-    const runner = new PipelineRunner(store, runId, "ctx");
+    const runner = new PipelineRunner(store, runId, "ctx", 3);
     const taskDesc = runner.buildTaskDescription("architecture", "Add user auth");
 
     expect(taskDesc).toContain("Add user auth");
     expect(taskDesc).toContain("analysis");
+  });
+
+  it("identifies review stage as special", () => {
+    const runId = store.createRun("test");
+    const runner = new PipelineRunner(store, runId, "ctx", 3);
+    expect(runner.isReviewStage("review")).toBe(true);
+    expect(runner.isReviewStage("testing")).toBe(false);
   });
 });
