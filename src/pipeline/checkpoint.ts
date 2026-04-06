@@ -1,7 +1,6 @@
 import readline from "readline";
 import chalk from "chalk";
 import type { CheckpointDecision, Stage } from "./types.js";
-import type { ArtifactStore } from "../artifacts/store.js";
 
 export function parseCheckpointInput(input: string): CheckpointDecision | null {
   const normalized = input.trim().toLowerCase();
@@ -21,15 +20,14 @@ export function parseCheckpointInput(input: string): CheckpointDecision | null {
 export async function promptCheckpoint(
   stage: Stage,
   artifactPreview: string,
-  store: ArtifactStore,
-  runId: string,
 ): Promise<CheckpointDecision> {
   console.log("");
   console.log(chalk.yellow(`── Checkpoint: ${stage} ──`));
   console.log("");
-  console.log(artifactPreview.slice(0, 2000));
-  if (artifactPreview.length > 2000) {
-    console.log(chalk.gray(`... (${artifactPreview.length - 2000} more characters)`));
+  const previewLimit = 3000;
+  console.log(artifactPreview.slice(0, previewLimit));
+  if (artifactPreview.length > previewLimit) {
+    console.log(chalk.gray(`... (${artifactPreview.length - previewLimit} more characters — press [v] to view full artifact)`));
   }
   console.log("");
 
@@ -38,7 +36,7 @@ export async function promptCheckpoint(
   const askOnce = (): Promise<CheckpointDecision> =>
     new Promise((resolve) => {
       rl.question(
-        chalk.cyan("[a]pprove  [r]eject  [s]kip  [v]iew previous > "),
+        chalk.cyan("[a]pprove  [r]eject  [s]kip  [v]iew full artifact > "),
         (answer) => {
           const decision = parseCheckpointInput(answer);
           if (!decision) {
@@ -48,22 +46,8 @@ export async function promptCheckpoint(
           }
 
           if (decision === "view") {
-            const meta = store.readMeta(runId);
-            const completedStages = Object.keys(meta.stages);
-            if (completedStages.length === 0) {
-              console.log(chalk.gray("No previous stages to view."));
-            } else {
-              for (const s of completedStages) {
-                const content = store.readArtifact(runId, s);
-                if (content) {
-                  console.log(chalk.blue(`\n── ${s} ──`));
-                  console.log(content.slice(0, 1000));
-                  if (content.length > 1000) {
-                    console.log(chalk.gray(`... (truncated)`));
-                  }
-                }
-              }
-            }
+            console.log(chalk.blue(`\n── ${stage} (full) ──\n`));
+            console.log(artifactPreview);
             resolve(askOnce());
             return;
           }
