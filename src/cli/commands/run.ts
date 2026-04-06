@@ -59,11 +59,14 @@ export function registerRunCommand(program: Command): void {
       console.log(chalk.blue(`Run: ${runId}`));
 
       // 4. Build pipeline config
+      const primaryRepo = repos[0]?.path ?? null;
+
       const pipelineConfig: PipelineConfig = {
         checkpoints: options.checkpoints
           ? workspaceConfig.pipelineSettings.checkpoints as PipelineConfig["checkpoints"]
           : "none",
         skipStages: workspaceConfig.pipelineSettings.skipStages as Stage[],
+        repoPath: primaryRepo,
       };
 
       const includeOptional = (options.include ?? []) as Stage[];
