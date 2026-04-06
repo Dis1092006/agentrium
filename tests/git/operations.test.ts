@@ -29,6 +29,12 @@ describe("git operations", () => {
     expect(slugifyTask("  Extra   spaces  ")).toBe("extra-spaces");
   });
 
+  it("slugifyTask handles edge cases", () => {
+    expect(slugifyTask("!!!!")).toBe("task");
+    expect(slugifyTask("   ")).toBe("task");
+    expect(slugifyTask("short")).toBe("short");
+  });
+
   it("slugifyTask truncates to 50 characters", () => {
     const long = "This is a very long task description that exceeds fifty characters easily";
     expect(slugifyTask(long).length).toBeLessThanOrEqual(50);
