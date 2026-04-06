@@ -76,7 +76,7 @@ export function registerRunCommand(program: Command): void {
       const maxReviewIterations = Number.isFinite(rawIterations) && rawIterations >= 1
         ? Math.floor(rawIterations)
         : 3;
-      const runner = new PipelineRunner(store, runId, contextPrompt, maxReviewIterations);
+      const runner = new PipelineRunner(store, runId, contextPrompt, maxReviewIterations, pipelineConfig.repoPath);
       await runner.runPipeline(task, pipelineConfig, includeOptional);
     });
 }
