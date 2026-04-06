@@ -35,5 +35,5 @@ export interface StageResult {
 export interface PipelineConfig {
   checkpoints: "all" | "none" | Stage[];
   skipStages: Stage[];
-  repoPath: string | null;
+  repoPath?: string | null;
 }

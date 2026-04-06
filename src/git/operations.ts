@@ -16,7 +16,12 @@ export function slugifyTask(task: string): string {
 
 export async function createBranch(repoPath: string, branchName: string): Promise<void> {
   const git = simpleGit(repoPath);
-  await git.checkoutLocalBranch(branchName);
+  const branches = await git.branchLocal();
+  if (branches.all.includes(branchName)) {
+    await git.checkout(branchName);
+  } else {
+    await git.checkoutLocalBranch(branchName);
+  }
 }
 
 export async function commitChanges(repoPath: string, message: string): Promise<boolean> {
@@ -33,11 +38,11 @@ export async function pushBranch(repoPath: string, branchName: string): Promise<
   await git.push("origin", branchName, ["-u"]);
 }
 
-export function createPR(repoPath: string, title: string, body: string): string {
+export function createPR(repoPath: string, branchName: string, title: string, body: string): string {
   // execFileSync (not exec) prevents shell injection — args passed as array
   const output = execFileSync(
     "gh",
-    ["pr", "create", "--title", title, "--body", body],
+    ["pr", "create", "--head", branchName, "--title", title, "--body", body],
     { cwd: repoPath, encoding: "utf-8" },
   );
   return output.trim();
