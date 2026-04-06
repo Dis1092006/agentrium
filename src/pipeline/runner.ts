@@ -92,8 +92,6 @@ export class PipelineRunner {
         const decision = await promptCheckpoint(
           planned.stage,
           result.artifact,
-          this.store,
-          this.runId,
         );
 
         if (decision === "reject") {
