@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { Command } from "commander";
+import { createRequire } from "module";
 import { registerInitCommand } from "./commands/init.js";
 import { registerRunCommand } from "./commands/run.js";
 import { registerWorkspacesCommand } from "./commands/workspaces.js";
@@ -7,12 +8,15 @@ import { registerRunsCommand } from "./commands/runs.js";
 import { registerShowCommand } from "./commands/show.js";
 import { registerStatusCommand } from "./commands/status.js";
 
+const require = createRequire(import.meta.url);
+const { version } = require("../../package.json") as { version: string };
+
 export function createProgram(): Command {
   const program = new Command();
   program
     .name("agentrium")
     .description("Multi-agent orchestrator for software development")
-    .version("0.3.0");
+    .version(version);
 
   registerInitCommand(program);
   registerRunCommand(program);
