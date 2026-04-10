@@ -17,6 +17,7 @@ export class PipelineRunner {
   private readonly runId: string;
   private readonly workspaceContext: string;
   private readonly maxReviewIterations: number;
+  private readonly agentTimeoutMs: number | undefined;
   private readonly repoPath: string | null;
 
   constructor(
@@ -25,12 +26,14 @@ export class PipelineRunner {
     workspaceContext: string,
     maxReviewIterations: number,
     repoPath: string | null = null,
+    agentTimeoutMinutes: number | null = null,
   ) {
     this.store = store;
     this.runId = runId;
     this.workspaceContext = workspaceContext;
     this.maxReviewIterations = maxReviewIterations;
     this.repoPath = repoPath;
+    this.agentTimeoutMs = agentTimeoutMinutes ? agentTimeoutMinutes * 60_000 : undefined;
   }
 
   assembleAgentContext(currentStage: Stage): string {
@@ -177,7 +180,7 @@ export class PipelineRunner {
       const agent = createAgentByName(planned.agentName);
       const context = this.assembleAgentContext(planned.stage);
       const taskDesc = this.buildTaskDescription(planned.stage, task);
-      const result = await agent.run(context, taskDesc);
+      const result = await agent.run(context, taskDesc, this.agentTimeoutMs);
 
       this.store.saveArtifact(this.runId, planned.stage, result.artifact);
       const durationMs = Date.now() - startTime;
@@ -206,6 +209,7 @@ export class PipelineRunner {
         this.runId,
         this.workspaceContext,
         this.maxReviewIterations,
+        this.agentTimeoutMs,
       );
 
       const verdict = await reviewProcess.run(task);
