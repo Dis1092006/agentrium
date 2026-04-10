@@ -21,6 +21,7 @@ export class BaseAgent {
     const { query } = await import("@anthropic-ai/claude-agent-sdk");
 
     const fullPrompt = this.buildSystemPrompt(contextPrompt);
+    const abortController = new AbortController();
 
     const execute = async (): Promise<string> => {
       let result = "";
@@ -30,6 +31,7 @@ export class BaseAgent {
           systemPrompt: fullPrompt,
           allowedTools: this.tools,
           permissionMode: "default",
+          abortController,
         },
       })) {
         if ("result" in message) {
@@ -41,13 +43,18 @@ export class BaseAgent {
 
     let result: string;
     if (timeoutMs) {
-      const timeout = new Promise<never>((_, reject) =>
-        setTimeout(
-          () => reject(new Error(`Agent "${this.name}" timed out after ${Math.round(timeoutMs / 60_000)} minutes`)),
-          timeoutMs,
-        ),
-      );
-      result = await Promise.race([execute(), timeout]);
+      let timeoutId: ReturnType<typeof setTimeout> | undefined;
+      const timeout = new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(() => {
+          abortController.abort();
+          reject(new Error(`Agent "${this.name}" timed out after ${Math.round(timeoutMs / 60_000)} minutes`));
+        }, timeoutMs);
+      });
+      try {
+        result = await Promise.race([execute(), timeout]);
+      } finally {
+        clearTimeout(timeoutId);
+      }
     } else {
       result = await execute();
     }
