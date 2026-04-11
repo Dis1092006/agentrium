@@ -13,17 +13,20 @@ export class ReviewProcess {
   private readonly runId: string;
   private readonly workspaceContext: string;
   private readonly maxIterations: number;
+  private readonly agentTimeoutMs: number | undefined;
 
   constructor(
     store: ArtifactStore,
     runId: string,
     workspaceContext: string,
     maxIterations: number,
+    agentTimeoutMs?: number,
   ) {
     this.store = store;
     this.runId = runId;
     this.workspaceContext = workspaceContext;
     this.maxIterations = maxIterations;
+    this.agentTimeoutMs = agentTimeoutMs;
   }
 
   buildReviewContext(): string {
@@ -111,8 +114,8 @@ export class ReviewProcess {
 
       try {
         [logicResult, securityResult] = await Promise.all([
-          createAgentByName("code-reviewer-logic").run(context, reviewTaskDesc),
-          createAgentByName("code-reviewer-security").run(context, reviewTaskDesc),
+          createAgentByName("code-reviewer-logic").run(context, reviewTaskDesc, this.agentTimeoutMs),
+          createAgentByName("code-reviewer-security").run(context, reviewTaskDesc, this.agentTimeoutMs),
         ]);
         reviewSpinner.succeed(`Code reviews complete${iterLabel}`);
       } catch (error) {
@@ -135,7 +138,7 @@ export class ReviewProcess {
           securityResult.artifact,
           originalTask,
         );
-        arbiterResult = await createAgentByName("review-arbiter").run(context, arbiterTaskDesc);
+        arbiterResult = await createAgentByName("review-arbiter").run(context, arbiterTaskDesc, this.agentTimeoutMs);
         const verdict = parseVerdict(arbiterResult.artifact);
         arbiterSpinner.succeed(`Arbiter verdict${iterLabel}: ${verdict}`);
 
@@ -170,7 +173,7 @@ export class ReviewProcess {
           originalTask,
           iteration,
         );
-        const fixResult = await createAgentByName("software-engineer").run(context, reworkDesc);
+        const fixResult = await createAgentByName("software-engineer").run(context, reworkDesc, this.agentTimeoutMs);
         this.store.saveArtifact(this.runId, `rework_fix_v${iteration}`, fixResult.artifact);
         fixSpinner.succeed(`Fixes applied (rework ${iteration})`);
       } catch (error) {
@@ -186,7 +189,7 @@ export class ReviewProcess {
           `Re-verify after rework ${iteration}. ` +
           `The Software Engineer made fixes based on review feedback. ` +
           `Run tests and verify the fixes are correct.`;
-        const qaResult = await createAgentByName("qa-engineer").run(context, qaDesc);
+        const qaResult = await createAgentByName("qa-engineer").run(context, qaDesc, this.agentTimeoutMs);
         this.store.saveArtifact(this.runId, `rework_qa_v${iteration}`, qaResult.artifact);
         qaSpinner.succeed(`Re-verification complete (rework ${iteration})`);
       } catch (error) {

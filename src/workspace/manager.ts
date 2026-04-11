@@ -34,6 +34,7 @@ export function generateAgentriumMd(name: string, repos: RepositoryRef[]): strin
   lines.push("## Pipeline Settings");
   lines.push("- Checkpoints: all");
   lines.push("- Max review iterations: 3");
+  lines.push("- Agent timeout minutes: 30");
   lines.push("- Skip stages: ");
   lines.push("");
   lines.push("## Knowledge Sources");

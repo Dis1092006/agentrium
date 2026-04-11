@@ -24,6 +24,12 @@ See [CLAUDE.md](~/workspace/my-api/CLAUDE.md)
 - MCP: Notion workspace https://notion.so/team
 `;
 
+const SAMPLE_MD_WITH_TIMEOUT = `# Workspace: test-project
+
+## Pipeline Settings
+- Agent timeout minutes: 60
+`;
+
 describe("parseAgentriumMd", () => {
   it("parses workspace name", () => {
     const config = parseAgentriumMd(SAMPLE_MD);
@@ -57,6 +63,22 @@ describe("parseAgentriumMd", () => {
     ]);
     expect(config.pipelineSettings.maxReviewIterations).toBe(3);
     expect(config.pipelineSettings.skipStages).toEqual(["ux_design"]);
+  });
+
+  it("defaults agentTimeoutMinutes to 30 when not specified", () => {
+    const config = parseAgentriumMd(SAMPLE_MD);
+    expect(config.pipelineSettings.agentTimeoutMinutes).toBe(30);
+  });
+
+  it("parses agentTimeoutMinutes when specified", () => {
+    const config = parseAgentriumMd(SAMPLE_MD_WITH_TIMEOUT);
+    expect(config.pipelineSettings.agentTimeoutMinutes).toBe(60);
+  });
+
+  it("keeps default agentTimeoutMinutes when value is malformed", () => {
+    const md = `# Workspace: test-project\n\n## Pipeline Settings\n- Agent timeout minutes: abc\n`;
+    const config = parseAgentriumMd(md);
+    expect(config.pipelineSettings.agentTimeoutMinutes).toBe(30);
   });
 
   it("parses knowledge sources", () => {

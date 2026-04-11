@@ -16,6 +16,7 @@ export interface RepositoryRef {
 export interface PipelineSettings {
   checkpoints: "all" | "none" | string[];
   maxReviewIterations: number;
+  agentTimeoutMinutes: number;
   skipStages: string[];
 }
 

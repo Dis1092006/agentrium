@@ -27,3 +27,5 @@ List any risks, assumptions, or dependencies on other systems.
 
 ## Out of Scope
 Explicitly list what this task does NOT include.
+
+Note: do NOT list git operations (branch creation, commits, pull request creation) as out of scope — these are handled automatically by the pipeline runner after all agent stages complete.

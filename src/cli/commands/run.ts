@@ -76,7 +76,11 @@ export function registerRunCommand(program: Command): void {
       const maxReviewIterations = Number.isFinite(rawIterations) && rawIterations >= 1
         ? Math.floor(rawIterations)
         : 3;
-      const runner = new PipelineRunner(store, runId, contextPrompt, maxReviewIterations, pipelineConfig.repoPath);
+      const rawTimeout = workspaceConfig.pipelineSettings.agentTimeoutMinutes;
+      const agentTimeoutMinutes = Number.isFinite(rawTimeout) && rawTimeout >= 1
+        ? Math.floor(rawTimeout)
+        : 30;
+      const runner = new PipelineRunner(store, runId, contextPrompt, maxReviewIterations, pipelineConfig.repoPath, agentTimeoutMinutes);
       await runner.runPipeline(task, pipelineConfig, includeOptional);
     });
 }

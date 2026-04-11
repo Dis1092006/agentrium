@@ -49,6 +49,7 @@ function parsePipelineSettings(content: string): PipelineSettings {
   const defaults: PipelineSettings = {
     checkpoints: "all",
     maxReviewIterations: 3,
+    agentTimeoutMinutes: 30,
     skipStages: [],
   };
   if (!section) return defaults;
@@ -65,6 +66,11 @@ function parsePipelineSettings(content: string): PipelineSettings {
       }
     } else if (text.toLowerCase().startsWith("max review iterations:")) {
       defaults.maxReviewIterations = parseInt(text.split(":")[1].trim(), 10);
+    } else if (text.toLowerCase().startsWith("agent timeout minutes:")) {
+      const parsed = parseInt(text.split(":")[1].trim(), 10);
+      if (Number.isFinite(parsed) && parsed >= 1) {
+        defaults.agentTimeoutMinutes = parsed;
+      }
     } else if (text.toLowerCase().startsWith("skip stages:")) {
       defaults.skipStages = text
         .split(":")[1]
