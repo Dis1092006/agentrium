@@ -73,7 +73,14 @@ export class ArtifactStore {
 
   readMeta(runId: string): RunMeta {
     const filePath = path.join(this.baseDir, runId, "meta.json");
-    return JSON.parse(fs.readFileSync(filePath, "utf-8"));
+    const raw = JSON.parse(fs.readFileSync(filePath, "utf-8"));
+    return { workspaceName: "", includeOptional: [], ...raw };
+  }
+
+  removeStage(runId: string, stage: string): void {
+    const meta = this.readMeta(runId);
+    delete meta.stages[stage];
+    this.writeMeta(runId, meta);
   }
 
   updateStatus(runId: string, status: RunMeta["status"]): void {

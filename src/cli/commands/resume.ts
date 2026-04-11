@@ -48,7 +48,17 @@ export function registerResumeCommand(program: Command): void {
         ({ store, workspaceName } = found);
       }
 
-      const meta = store.readMeta(runId);
+      let meta;
+      try {
+        meta = store.readMeta(runId);
+      } catch {
+        if (options.workspace) {
+          console.log(chalk.red(`Run "${runId}" not found or unreadable in workspace "${workspaceName}". Try omitting --workspace to auto-detect it.`));
+        } else {
+          console.log(chalk.red(`Run "${runId}" not found in any workspace.`));
+        }
+        process.exit(1);
+      }
 
       // Use stored workspaceName if present (overrides search result for clarity)
       const effectiveWorkspace = meta.workspaceName || workspaceName;

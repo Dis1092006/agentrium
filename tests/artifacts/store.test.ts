@@ -95,7 +95,8 @@ describe("ArtifactStore", () => {
     );
     const meta = store.readMeta(runId);
     expect(meta.task).toBe("old task");
-    expect(meta.workspaceName).toBeUndefined();
+    expect(meta.workspaceName).toBe("");
+    expect(meta.includeOptional).toEqual([]);
   });
 
   it("listRuns includes task, status, and stage data", () => {

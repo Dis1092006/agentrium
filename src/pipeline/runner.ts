@@ -121,6 +121,7 @@ export class PipelineRunner {
         );
 
         if (decision === "reject") {
+          this.store.removeStage(this.runId, planned.stage);
           console.log(chalk.red(`Stage "${planned.stage}" rejected. Aborting pipeline.`));
           this.store.updateStatus(this.runId, "aborted");
           return;
