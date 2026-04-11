@@ -7,6 +7,7 @@ import { registerWorkspacesCommand } from "./commands/workspaces.js";
 import { registerRunsCommand } from "./commands/runs.js";
 import { registerShowCommand } from "./commands/show.js";
 import { registerStatusCommand } from "./commands/status.js";
+import { registerResumeCommand } from "./commands/resume.js";
 
 const require = createRequire(import.meta.url);
 const { version } = require("../../package.json") as { version: string };
@@ -24,6 +25,7 @@ export function createProgram(): Command {
   registerRunsCommand(program);
   registerShowCommand(program);
   registerStatusCommand(program);
+  registerResumeCommand(program);
 
   return program;
 }

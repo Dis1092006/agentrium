@@ -63,4 +63,13 @@ describe("PipelineRunner", () => {
     expect(runner.isReviewStage("review")).toBe(true);
     expect(runner.isReviewStage("testing")).toBe(false);
   });
+
+  it("readMeta reflects completed stages saved via saveArtifact", () => {
+    const runId = store.createRun("test task");
+    store.saveArtifact(runId, "analysis", "# Analysis");
+
+    const meta = store.readMeta(runId);
+    expect(meta.stages).toHaveProperty("analysis");
+    expect(meta.stages).not.toHaveProperty("architecture");
+  });
 });
