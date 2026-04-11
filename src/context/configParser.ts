@@ -67,7 +67,10 @@ function parsePipelineSettings(content: string): PipelineSettings {
     } else if (text.toLowerCase().startsWith("max review iterations:")) {
       defaults.maxReviewIterations = parseInt(text.split(":")[1].trim(), 10);
     } else if (text.toLowerCase().startsWith("agent timeout minutes:")) {
-      defaults.agentTimeoutMinutes = parseInt(text.split(":")[1].trim(), 10);
+      const parsed = parseInt(text.split(":")[1].trim(), 10);
+      if (Number.isFinite(parsed) && parsed >= 1) {
+        defaults.agentTimeoutMinutes = parsed;
+      }
     } else if (text.toLowerCase().startsWith("skip stages:")) {
       defaults.skipStages = text
         .split(":")[1]
