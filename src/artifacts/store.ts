@@ -19,6 +19,9 @@ export interface RunMeta {
   status: "running" | "completed" | "failed" | "aborted";
   createdAt: string;
   stages: Record<string, { completedAt: string }>;
+  workspaceName: string;
+  includeOptional: string[];
+  prUrl?: string;
 }
 
 export class ArtifactStore {
@@ -29,7 +32,7 @@ export class ArtifactStore {
     fs.mkdirSync(baseDir, { recursive: true });
   }
 
-  createRun(task: string): string {
+  createRun(task: string, workspaceName: string = "", includeOptional: string[] = []): string {
     const runId = `run_${crypto.randomBytes(6).toString("hex")}`;
     const runDir = path.join(this.baseDir, runId);
     fs.mkdirSync(runDir, { recursive: true });
@@ -40,6 +43,8 @@ export class ArtifactStore {
       status: "running",
       createdAt: new Date().toISOString(),
       stages: {},
+      workspaceName,
+      includeOptional,
     };
     fs.writeFileSync(path.join(runDir, "meta.json"), JSON.stringify(meta, null, 2));
 
@@ -74,6 +79,12 @@ export class ArtifactStore {
   updateStatus(runId: string, status: RunMeta["status"]): void {
     const meta = this.readMeta(runId);
     meta.status = status;
+    this.writeMeta(runId, meta);
+  }
+
+  updatePrUrl(runId: string, prUrl: string): void {
+    const meta = this.readMeta(runId);
+    meta.prUrl = prUrl;
     this.writeMeta(runId, meta);
   }
 

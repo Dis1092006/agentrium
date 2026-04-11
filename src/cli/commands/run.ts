@@ -53,8 +53,9 @@ export function registerRunCommand(program: Command): void {
       const contextPrompt = buildContextPrompt(fullContext);
 
       // 3. Create run and save intake
+      const includeOptional = (options.include ?? []) as Stage[];
       const store = new ArtifactStore(path.join(getWorkspacesDir(), workspaceName, "runs"));
-      const runId = store.createRun(task);
+      const runId = store.createRun(task, workspaceName, includeOptional);
       store.saveArtifact(runId, "intake", `# Task\n\n${task}\n\n# Context\n\n${contextPrompt}`);
       console.log(chalk.blue(`Run: ${runId}`));
 
@@ -68,8 +69,6 @@ export function registerRunCommand(program: Command): void {
         skipStages: workspaceConfig.pipelineSettings.skipStages as Stage[],
         repoPath: primaryRepo,
       };
-
-      const includeOptional = (options.include ?? []) as Stage[];
 
       // 5. Run pipeline
       const rawIterations = workspaceConfig.pipelineSettings.maxReviewIterations;

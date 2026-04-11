@@ -64,6 +64,40 @@ describe("ArtifactStore", () => {
     );
   });
 
+  it("createRun stores workspaceName and includeOptional", () => {
+    const runId = store.createRun("task", "my-workspace", ["design"]);
+    const meta = store.readMeta(runId);
+    expect(meta.workspaceName).toBe("my-workspace");
+    expect(meta.includeOptional).toEqual(["design"]);
+  });
+
+  it("createRun defaults workspaceName and includeOptional when not provided", () => {
+    const runId = store.createRun("task");
+    const meta = store.readMeta(runId);
+    expect(meta.workspaceName).toBe("");
+    expect(meta.includeOptional).toEqual([]);
+  });
+
+  it("updatePrUrl persists prUrl in meta", () => {
+    const runId = store.createRun("task");
+    store.updatePrUrl(runId, "https://github.com/org/repo/pull/42");
+    const meta = store.readMeta(runId);
+    expect(meta.prUrl).toBe("https://github.com/org/repo/pull/42");
+  });
+
+  it("readMeta handles old meta.json without new fields gracefully", () => {
+    const runId = `run_oldformat`;
+    const runDir = path.join(tmpDir, runId);
+    fs.mkdirSync(runDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(runDir, "meta.json"),
+      JSON.stringify({ runId, task: "old task", status: "completed", createdAt: new Date().toISOString(), stages: {} }),
+    );
+    const meta = store.readMeta(runId);
+    expect(meta.task).toBe("old task");
+    expect(meta.workspaceName).toBeUndefined();
+  });
+
   it("listRuns includes task, status, and stage data", () => {
     const runId = store.createRun("my task");
     store.saveArtifact(runId, "analysis", "# Analysis");
