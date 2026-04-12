@@ -163,10 +163,7 @@ export class ReviewProcess {
       if (this.gitContext?.copilotEnabled) {
         const copilotSpinner = ora(`Waiting for Copilot review${iterLabel}...`).start();
         try {
-          if (iteration === 1) {
-            // Request is already triggered when PR is created; just wait
-          } else {
-            // Re-request after rework push
+          if (iteration > 1) {
             requestCopilotReview(this.gitContext.repoPath, this.gitContext.prNumber);
           }
           copilotReview = await waitForCopilotReview(

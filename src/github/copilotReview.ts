@@ -64,7 +64,13 @@ export async function waitForCopilotReview(
       ),
     ) as Array<{ id: number; user: { login: string }; state: string }>;
 
-    const copilotReview = reviews.find((r) => r.user.login === COPILOT_LOGIN);
+    const copilotReviews = reviews.filter(
+      (r) => r.user.login === COPILOT_LOGIN && r.state !== "PENDING",
+    );
+    const copilotReview = copilotReviews.reduce<typeof copilotReviews[number] | undefined>(
+      (best, r) => (best === undefined || r.id > best.id ? r : best),
+      undefined,
+    );
     if (copilotReview) {
       const rawComments = JSON.parse(
         execFileSync(

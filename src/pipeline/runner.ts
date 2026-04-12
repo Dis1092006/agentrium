@@ -9,7 +9,7 @@ import { createAgentByName } from "../agents/registry.js";
 import { ArtifactStore } from "../artifacts/store.js";
 import { ReviewProcess } from "../review/process.js";
 import { slugifyTask, createBranch, commitChanges, pushBranch, createPR } from "../git/operations.js";
-import { extractPrNumber } from "../github/copilotReview.js";
+import { extractPrNumber, requestCopilotReview } from "../github/copilotReview.js";
 
 const ARTIFACT_STAGES: string[] = ["intake", ...STAGE_ORDER];
 
@@ -196,7 +196,18 @@ export class PipelineRunner {
     try {
       await pushBranch(this.repoPath, branchName);
       const prBody = this.buildPrBody(task);
-      return createPR(this.repoPath, branchName, task, prBody);
+      const prUrl = createPR(this.repoPath, branchName, task, prBody);
+      if (this.copilotReviewEnabled) {
+        const prNumber = extractPrNumber(prUrl);
+        if (prNumber) {
+          try {
+            requestCopilotReview(this.repoPath, prNumber);
+          } catch {
+            // Non-fatal: Copilot review will be skipped if request fails
+          }
+        }
+      }
+      return prUrl;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       console.log(chalk.yellow(`Warning: could not create pull request before review: ${message}`));
