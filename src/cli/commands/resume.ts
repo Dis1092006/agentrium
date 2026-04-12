@@ -3,13 +3,14 @@ import { Command } from "commander";
 import path from "path";
 import chalk from "chalk";
 import fs from "fs";
+import readline from "readline";
 import { getWorkspacesDir, listWorkspaces, loadWorkspaceConfig } from "../../workspace/manager.js";
 import { parseAgentriumMd } from "../../context/configParser.js";
 import { analyzeRepo } from "../../context/repoAnalyzer.js";
 import { buildContextPrompt } from "../../context/contextBuilder.js";
 import { ArtifactStore } from "../../artifacts/store.js";
 import { PipelineRunner } from "../../pipeline/runner.js";
-import { pushBranch, createPR, slugifyTask, branchExists } from "../../git/operations.js";
+import { pushBranch, createPR, slugifyTask, branchExists, getUncommittedFiles, commitChanges } from "../../git/operations.js";
 import type { FullContext } from "../../context/types.js";
 import type { PipelineConfig, Stage } from "../../pipeline/types.js";
 
@@ -155,6 +156,25 @@ async function retryGitOps(store: ArtifactStore, runId: string, task: string, wo
       console.log(chalk.yellow(`If you pushed it manually, create the PR with: gh pr create --head ${branchName}`));
       return;
     }
+
+    const uncommitted = await getUncommittedFiles(repoPath);
+    if (uncommitted.length > 0) {
+      console.log(chalk.yellow(`\nUncommitted changes found in ${repoPath}:`));
+      for (const f of uncommitted) {
+        console.log(chalk.gray(`  ${f}`));
+      }
+      const confirmed = await askYesNo(chalk.cyan("\nCommit these changes and include in PR? [y/n] > "));
+      if (!confirmed) {
+        console.log(chalk.yellow("Skipping commit. Proceeding with push of existing commits."));
+      } else {
+        const commitMsg = `feat: ${task}`;
+        const committed = await commitChanges(repoPath, commitMsg);
+        if (committed) {
+          console.log(chalk.gray(`Committed changes: "${commitMsg}"`));
+        }
+      }
+    }
+
     await pushBranch(repoPath, branchName);
     const analysisSummary = store.readArtifact(runId, "analysis") ?? "";
     const implSummary = store.readArtifact(runId, "implementation") ?? "";
@@ -178,4 +198,14 @@ async function retryGitOps(store: ArtifactStore, runId: string, task: string, wo
     console.log(chalk.red(`Failed to create PR: ${message}`));
     console.log(chalk.yellow(`Push manually: git push origin ${branchName}`));
   }
+}
+
+function askYesNo(prompt: string): Promise<boolean> {
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  return new Promise((resolve) => {
+    rl.question(prompt, (answer) => {
+      rl.close();
+      resolve(answer.trim().toLowerCase() === "y");
+    });
+  });
 }

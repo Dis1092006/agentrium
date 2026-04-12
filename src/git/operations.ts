@@ -24,6 +24,18 @@ export async function createBranch(repoPath: string, branchName: string): Promis
   }
 }
 
+export async function getUncommittedFiles(repoPath: string): Promise<string[]> {
+  const git = simpleGit(repoPath);
+  const status = await git.status();
+  return [
+    ...status.modified,
+    ...status.not_added,
+    ...status.created,
+    ...status.deleted,
+    ...status.renamed.map((r) => r.to),
+  ];
+}
+
 export async function commitChanges(repoPath: string, message: string): Promise<boolean> {
   const git = simpleGit(repoPath);
   await git.add(".");
