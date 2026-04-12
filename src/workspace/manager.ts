@@ -35,6 +35,8 @@ export function generateAgentriumMd(name: string, repos: RepositoryRef[]): strin
   lines.push("- Checkpoints: all");
   lines.push("- Max review iterations: 3");
   lines.push("- Agent timeout minutes: 30");
+  lines.push("- Copilot review: false");
+  lines.push("- Copilot review timeout minutes: 5");
   lines.push("- Skip stages: ");
   lines.push("");
   lines.push("## Knowledge Sources");

@@ -50,6 +50,8 @@ function parsePipelineSettings(content: string): PipelineSettings {
     checkpoints: "all",
     maxReviewIterations: 3,
     agentTimeoutMinutes: 30,
+    copilotReviewEnabled: false,
+    copilotReviewTimeoutMinutes: 5,
     skipStages: [],
   };
   if (!section) return defaults;
@@ -71,6 +73,13 @@ function parsePipelineSettings(content: string): PipelineSettings {
       if (Number.isFinite(parsed) && parsed >= 1) {
         defaults.agentTimeoutMinutes = parsed;
       }
+    } else if (text.toLowerCase().startsWith("copilot review timeout minutes:")) {
+      const parsed = parseInt(text.split(":")[1].trim(), 10);
+      if (Number.isFinite(parsed) && parsed >= 1) {
+        defaults.copilotReviewTimeoutMinutes = parsed;
+      }
+    } else if (text.toLowerCase().startsWith("copilot review:")) {
+      defaults.copilotReviewEnabled = text.split(":")[1].trim().toLowerCase() === "true";
     } else if (text.toLowerCase().startsWith("skip stages:")) {
       defaults.skipStages = text
         .split(":")[1]

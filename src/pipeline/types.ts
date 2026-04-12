@@ -36,4 +36,6 @@ export interface PipelineConfig {
   checkpoints: "all" | "none" | Stage[];
   skipStages: Stage[];
   repoPath?: string | null;
+  copilotReviewEnabled?: boolean;
+  copilotReviewTimeoutMinutes?: number;
 }
