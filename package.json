@@ -1,6 +1,6 @@
 {
   "name": "agentrium",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "Multi-agent orchestrator for software development",
   "type": "module",
   "bin": {
