@@ -4,8 +4,9 @@ Multi-agent orchestrator for software development. Runs a task through a pipelin
 
 ## Requirements
 
-- Node.js 22+
+- Node.js 24+
 - [Claude Code](https://claude.ai/code) subscription (used for agent authentication)
+- [GitHub CLI (`gh`)](https://cli.github.com/) — required for git integration and Copilot review
 
 ## Installation
 
@@ -42,6 +43,20 @@ At each checkpoint (configurable), you can approve, reject, skip, or view the ag
 
 The **review** stage runs two agents in parallel (Logic Reviewer + Security Reviewer), then a Review Arbiter merges their findings into a final verdict. If changes are requested, a rework cycle runs automatically (Software Engineer fixes → QA re-verifies → re-review), up to a configurable maximum.
 
+### Git integration
+
+When a target repository is configured, agentrium automatically:
+
+1. Creates a branch (`agentrium/<task-slug>`) in the target repo
+2. Commits implementation and test changes after those stages
+3. Creates a pull request before the review stage
+
+### GitHub Copilot review (optional)
+
+When `Copilot review: true` is set, agentrium requests a GitHub Copilot review on the PR and waits for inline comments. Copilot's findings are passed to the Review Arbiter alongside the Logic and Security reviewers. After each rework iteration the branch is pushed and Copilot is re-requested. Inline replies are posted back to each Copilot comment based on the Arbiter's dispositions.
+
+Requires GitHub Copilot Enterprise or a plan that includes Copilot code review.
+
 ## Commands
 
 ### `agentrium init`
@@ -62,7 +77,7 @@ After init, edit `~/.agentrium/workspaces/<name>/AGENTRIUM.md` to configure your
 - [my-project](~/workspace/my-project) — main application
 
 ## Tech Stack
-- TypeScript, Node.js 22, PostgreSQL
+- TypeScript, Node.js 24, PostgreSQL
 
 ## Conventions
 See CLAUDE.md
@@ -70,6 +85,9 @@ See CLAUDE.md
 ## Pipeline Settings
 - Checkpoints: analysis, architecture, review
 - Max review iterations: 3
+- Agent timeout minutes: 30
+- Copilot review: false
+- Copilot review timeout minutes: 5
 - Skip stages: design, documentation
 ```
 
@@ -91,6 +109,17 @@ agentrium run "Fix bug" --workspace my-other-ws
 - `[r]` Reject — abort the pipeline
 - `[s]` Skip — skip to the next stage (current stage artifact is still saved)
 - `[v]` View — print the saved artifact for the current stage
+
+### `agentrium resume <run-id>`
+
+Resume an interrupted pipeline run from where it left off.
+
+```bash
+agentrium resume run_abc123
+agentrium resume run_abc123 --workspace my-ws
+```
+
+Completed stages are skipped automatically. If the run finished but no PR was created (e.g. due to a network error), the resume command will push the branch and open the PR.
 
 ### `agentrium workspaces`
 
@@ -139,7 +168,7 @@ agentrium status --workspace my-ws
 | `implementation` | Software Engineer | no |
 | `testing` | QA Engineer | no |
 | `documentation` | Technical Writer | yes (`--include documentation`) |
-| `review` | Logic Reviewer + Security Reviewer + Arbiter | no |
+| `review` | Logic Reviewer + Security Reviewer + Arbiter (+ Copilot) | no |
 
 ## Artifacts
 
