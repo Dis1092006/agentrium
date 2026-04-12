@@ -79,7 +79,12 @@ export function registerRunCommand(program: Command): void {
       const agentTimeoutMinutes = Number.isFinite(rawTimeout) && rawTimeout >= 1
         ? Math.floor(rawTimeout)
         : 30;
-      const runner = new PipelineRunner(store, runId, contextPrompt, maxReviewIterations, pipelineConfig.repoPath, agentTimeoutMinutes);
+      const copilotEnabled = workspaceConfig.pipelineSettings.copilotReviewEnabled ?? false;
+      const rawCopilotTimeout = workspaceConfig.pipelineSettings.copilotReviewTimeoutMinutes;
+      const copilotTimeoutMinutes = Number.isFinite(rawCopilotTimeout) && rawCopilotTimeout >= 1
+        ? Math.floor(rawCopilotTimeout)
+        : 5;
+      const runner = new PipelineRunner(store, runId, contextPrompt, maxReviewIterations, pipelineConfig.repoPath, agentTimeoutMinutes, copilotEnabled, copilotTimeoutMinutes);
       await runner.runPipeline(task, pipelineConfig, includeOptional);
     });
 }

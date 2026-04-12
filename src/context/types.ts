@@ -17,6 +17,8 @@ export interface PipelineSettings {
   checkpoints: "all" | "none" | string[];
   maxReviewIterations: number;
   agentTimeoutMinutes: number;
+  copilotReviewEnabled: boolean;
+  copilotReviewTimeoutMinutes: number;
   skipStages: string[];
 }
 

@@ -5,8 +5,25 @@ import { createAgentByName } from "../agents/registry.js";
 import { ArtifactStore } from "../artifacts/store.js";
 import { parseVerdict, type ReviewVerdict } from "./types.js";
 import { STAGE_ORDER } from "../pipeline/types.js";
+import { commitChanges, pushBranch } from "../git/operations.js";
+import {
+  requestCopilotReview,
+  waitForCopilotReview,
+  formatCopilotFindings,
+  postCommentReplies,
+  parseCopilotDispositions,
+  type CopilotReview,
+} from "../github/copilotReview.js";
 
 const ARTIFACT_STAGES: string[] = ["intake", ...STAGE_ORDER];
+
+export interface GitContext {
+  repoPath: string;
+  branchName: string;
+  prNumber: number;
+  copilotEnabled: boolean;
+  copilotTimeoutMs: number;
+}
 
 export class ReviewProcess {
   private readonly store: ArtifactStore;
@@ -14,6 +31,7 @@ export class ReviewProcess {
   private readonly workspaceContext: string;
   private readonly maxIterations: number;
   private readonly agentTimeoutMs: number | undefined;
+  private readonly gitContext: GitContext | undefined;
 
   constructor(
     store: ArtifactStore,
@@ -21,12 +39,14 @@ export class ReviewProcess {
     workspaceContext: string,
     maxIterations: number,
     agentTimeoutMs?: number,
+    gitContext?: GitContext,
   ) {
     this.store = store;
     this.runId = runId;
     this.workspaceContext = workspaceContext;
     this.maxIterations = maxIterations;
     this.agentTimeoutMs = agentTimeoutMs;
+    this.gitContext = gitContext;
   }
 
   buildReviewContext(): string {
@@ -56,13 +76,23 @@ export class ReviewProcess {
     logicFindings: string,
     securityFindings: string,
     originalTask: string,
+    copilotFindings?: string,
   ): string {
-    return (
+    let desc =
       `Original task: ${originalTask}\n\n` +
       `## Logic Reviewer Findings\n\n${logicFindings}\n\n` +
-      `## Security Reviewer Findings\n\n${securityFindings}\n\n` +
-      `Deduplicate, resolve conflicts, prioritize, and produce your verdict.`
-    );
+      `## Security Reviewer Findings\n\n${securityFindings}\n\n`;
+
+    if (copilotFindings) {
+      desc += `## Copilot Findings\n\n${copilotFindings}\n\n`;
+    }
+
+    desc += `Deduplicate, resolve conflicts, prioritize, and produce your verdict.`;
+    if (copilotFindings) {
+      desc += ` For each Copilot inline comment, include a "## Copilot Comment Dispositions" section with entries in the format: \`- comment_id:{id} → ADDRESSED|REJECTED|NOTED: {explanation}\``;
+    }
+
+    return desc;
   }
 
   buildReworkTaskDescription(
@@ -128,15 +158,46 @@ export class ReviewProcess {
       this.store.saveArtifact(this.runId, `review_logic${reviewSuffix}`, logicResult.artifact);
       this.store.saveArtifact(this.runId, `review_security${reviewSuffix}`, securityResult.artifact);
 
-      // 2. Run arbiter
+      // 2. Wait for Copilot review (if enabled and PR exists)
+      let copilotReview: CopilotReview | null = null;
+      if (this.gitContext?.copilotEnabled) {
+        const copilotSpinner = ora(`Waiting for Copilot review${iterLabel}...`).start();
+        try {
+          if (iteration === 1) {
+            // Request is already triggered when PR is created; just wait
+          } else {
+            // Re-request after rework push
+            requestCopilotReview(this.gitContext.repoPath, this.gitContext.prNumber);
+          }
+          copilotReview = await waitForCopilotReview(
+            this.gitContext.repoPath,
+            this.gitContext.prNumber,
+            this.gitContext.copilotTimeoutMs,
+          );
+          if (copilotReview) {
+            const findings = formatCopilotFindings(copilotReview);
+            this.store.saveArtifact(this.runId, `review_copilot${reviewSuffix}`, findings);
+            copilotSpinner.succeed(`Copilot review received (${copilotReview.comments.length} comments)${iterLabel}`);
+          } else {
+            copilotSpinner.warn(`Copilot review timed out, continuing without it${iterLabel}`);
+          }
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          copilotSpinner.warn(`Copilot review unavailable: ${message}`);
+        }
+      }
+
+      // 3. Run arbiter
       const arbiterSpinner = ora(`Review Arbiter analyzing findings${iterLabel}...`).start();
       let arbiterResult: typeof logicResult;
 
       try {
+        const copilotFindings = copilotReview ? formatCopilotFindings(copilotReview) : undefined;
         const arbiterTaskDesc = this.buildArbiterTaskDescription(
           logicResult.artifact,
           securityResult.artifact,
           originalTask,
+          copilotFindings,
         );
         arbiterResult = await createAgentByName("review-arbiter").run(context, arbiterTaskDesc, this.agentTimeoutMs);
         const verdict = parseVerdict(arbiterResult.artifact);
@@ -144,13 +205,26 @@ export class ReviewProcess {
 
         this.store.saveArtifact(this.runId, `review_arbiter${reviewSuffix}`, arbiterResult.artifact);
 
-        // 3. If approved, save final review and return
+        // 4. Post replies to Copilot comments
+        if (copilotReview && this.gitContext) {
+          try {
+            const replies = parseCopilotDispositions(arbiterResult.artifact);
+            if (replies.length > 0) {
+              postCommentReplies(this.gitContext.repoPath, this.gitContext.prNumber, replies);
+              console.log(chalk.gray(`Posted ${replies.length} replies to Copilot comments${iterLabel}`));
+            }
+          } catch {
+            // Don't fail the pipeline if replies can't be posted
+          }
+        }
+
+        // 5. If approved, save final review and return
         if (verdict === "approve" || verdict === "approve_with_nits") {
           this.store.saveArtifact(this.runId, "review", arbiterResult.artifact);
           return verdict;
         }
 
-        // 4. Request changes — enter rework cycle
+        // 6. Request changes — enter rework cycle
         if (iteration >= this.maxIterations) {
           console.log(
             chalk.yellow(`Max review iterations (${this.maxIterations}) reached. Saving last review.`),
@@ -165,7 +239,7 @@ export class ReviewProcess {
         throw error;
       }
 
-      // 4a. Software Engineer fixes (rework iteration = current review iteration)
+      // 7a. Software Engineer fixes (rework iteration = current review iteration)
       const fixSpinner = ora(`Software Engineer applying fixes (rework ${iteration})...`).start();
       try {
         const reworkDesc = this.buildReworkTaskDescription(
@@ -181,7 +255,24 @@ export class ReviewProcess {
         throw error;
       }
 
-      // 4b. QA Engineer re-verifies
+      // 7b. Commit and push rework fixes so Copilot can see them in the next iteration
+      if (this.gitContext) {
+        try {
+          const committed = await commitChanges(
+            this.gitContext.repoPath,
+            `fix: rework iteration ${iteration} for task: ${originalTask.slice(0, 50)}`,
+          );
+          if (committed) {
+            await pushBranch(this.gitContext.repoPath, this.gitContext.branchName);
+            console.log(chalk.gray(`Pushed rework ${iteration} commits`));
+          }
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          console.log(chalk.yellow(`Warning: could not push rework commits: ${message}`));
+        }
+      }
+
+      // 7c. QA Engineer re-verifies
       const qaSpinner = ora(`QA Engineer re-verifying (rework ${iteration})...`).start();
       try {
         const qaDesc =
