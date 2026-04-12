@@ -9,7 +9,7 @@ import { analyzeRepo } from "../../context/repoAnalyzer.js";
 import { buildContextPrompt } from "../../context/contextBuilder.js";
 import { ArtifactStore } from "../../artifacts/store.js";
 import { PipelineRunner } from "../../pipeline/runner.js";
-import { pushBranch, createPR, slugifyTask } from "../../git/operations.js";
+import { pushBranch, createPR, slugifyTask, branchExists } from "../../git/operations.js";
 import type { FullContext } from "../../context/types.js";
 import type { PipelineConfig, Stage } from "../../pipeline/types.js";
 
@@ -149,6 +149,12 @@ async function retryGitOps(store: ArtifactStore, runId: string, task: string, wo
 
   const branchName = `agentrium/${slugifyTask(task)}`;
   try {
+    const exists = await branchExists(repoPath, branchName);
+    if (!exists) {
+      console.log(chalk.red(`Branch "${branchName}" does not exist locally.`));
+      console.log(chalk.yellow(`If you pushed it manually, create the PR with: gh pr create --head ${branchName}`));
+      return;
+    }
     await pushBranch(repoPath, branchName);
     const analysisSummary = store.readArtifact(runId, "analysis") ?? "";
     const implSummary = store.readArtifact(runId, "implementation") ?? "";

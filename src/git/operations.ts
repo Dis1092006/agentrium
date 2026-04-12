@@ -33,6 +33,12 @@ export async function commitChanges(repoPath: string, message: string): Promise<
   return true;
 }
 
+export async function branchExists(repoPath: string, branchName: string): Promise<boolean> {
+  const git = simpleGit(repoPath);
+  const branches = await git.branchLocal();
+  return branches.all.includes(branchName);
+}
+
 export async function pushBranch(repoPath: string, branchName: string): Promise<void> {
   const git = simpleGit(repoPath);
   await git.push("origin", branchName, ["-u"]);
