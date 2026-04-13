@@ -10,7 +10,7 @@ import { analyzeRepo } from "../../context/repoAnalyzer.js";
 import { buildContextPrompt } from "../../context/contextBuilder.js";
 import { ArtifactStore } from "../../artifacts/store.js";
 import { PipelineRunner } from "../../pipeline/runner.js";
-import { pushBranch, createPR, slugifyTask, branchExists, getUncommittedFiles, commitChanges } from "../../git/operations.js";
+import { pushBranch, createPR, slugifyTask, branchExists, createBranch, getUncommittedFiles, commitChanges } from "../../git/operations.js";
 import type { FullContext } from "../../context/types.js";
 import type { PipelineConfig, Stage } from "../../pipeline/types.js";
 
@@ -156,6 +156,8 @@ async function retryGitOps(store: ArtifactStore, runId: string, task: string, wo
       console.log(chalk.yellow(`If you pushed it manually, create the PR with: gh pr create --head ${branchName}`));
       return;
     }
+
+    await createBranch(repoPath, branchName);
 
     const uncommitted = await getUncommittedFiles(repoPath);
     if (uncommitted.length > 0) {
