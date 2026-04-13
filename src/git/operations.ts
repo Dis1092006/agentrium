@@ -24,6 +24,22 @@ export async function createBranch(repoPath: string, branchName: string): Promis
   }
 }
 
+export async function getUncommittedFiles(repoPath: string): Promise<string[]> {
+  const git = simpleGit(repoPath);
+  const status = await git.status();
+  return Array.from(
+    new Set([
+      ...status.modified,
+      ...status.not_added,
+      ...status.created,
+      ...status.deleted,
+      ...status.staged,
+      ...status.conflicted,
+      ...status.renamed.map((r) => r.to),
+    ]),
+  );
+}
+
 export async function commitChanges(repoPath: string, message: string): Promise<boolean> {
   const git = simpleGit(repoPath);
   await git.add(".");
@@ -31,6 +47,12 @@ export async function commitChanges(repoPath: string, message: string): Promise<
   if (status.staged.length === 0) return false;
   await git.commit(message);
   return true;
+}
+
+export async function branchExists(repoPath: string, branchName: string): Promise<boolean> {
+  const git = simpleGit(repoPath);
+  const branches = await git.branchLocal();
+  return branches.all.includes(branchName);
 }
 
 export async function pushBranch(repoPath: string, branchName: string): Promise<void> {

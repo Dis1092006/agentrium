@@ -30,6 +30,12 @@ const SAMPLE_MD_WITH_TIMEOUT = `# Workspace: test-project
 - Agent timeout minutes: 60
 `;
 
+const SAMPLE_MD_NO_DESCRIPTION = `# Workspace: test-project
+
+## Repositories
+- [python-battleship](C:\\git\\github\\experiments\\python-battleship)
+`;
+
 describe("parseAgentriumMd", () => {
   it("parses workspace name", () => {
     const config = parseAgentriumMd(SAMPLE_MD);
@@ -43,6 +49,16 @@ describe("parseAgentriumMd", () => {
       name: "my-api",
       path: "~/workspace/my-api",
       description: "REST API service",
+    });
+  });
+
+  it("parses repository entry without description", () => {
+    const config = parseAgentriumMd(SAMPLE_MD_NO_DESCRIPTION);
+    expect(config.repositories).toHaveLength(1);
+    expect(config.repositories[0]).toEqual({
+      name: "python-battleship",
+      path: "C:\\git\\github\\experiments\\python-battleship",
+      description: "",
     });
   });
 

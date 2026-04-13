@@ -20,11 +20,11 @@ function parseRepositories(content: string): RepositoryRef[] {
   const section = extractSection(content, "Repositories");
   if (!section) return [];
 
-  const repoPattern = /^-\s+\[([^\]]+)\]\(([^)]+)\)\s*—\s*(.+)$/gm;
+  const repoPattern = /^-\s+\[([^\]]+)\]\(([^)]+)\)(?:\s*[—-]\s*(.+))?$/gm;
   const repos: RepositoryRef[] = [];
   let match;
   while ((match = repoPattern.exec(section)) !== null) {
-    repos.push({ name: match[1], path: match[2], description: match[3].trim() });
+    repos.push({ name: match[1], path: match[2], description: match[3]?.trim() ?? "" });
   }
   return repos;
 }

@@ -4,7 +4,7 @@ import fs from "fs";
 import path from "path";
 import os from "os";
 import { execSync } from "child_process";
-import { slugifyTask, createBranch, commitChanges } from "../../src/git/operations.js";
+import { slugifyTask, createBranch, commitChanges, branchExists, getUncommittedFiles } from "../../src/git/operations.js";
 
 describe("git operations", () => {
   let repoDir: string;
@@ -59,5 +59,53 @@ describe("git operations", () => {
     await createBranch(repoDir, "agentrium/test-branch");
     const committed = await commitChanges(repoDir, "feat: nothing");
     expect(committed).toBe(false);
+  });
+
+  it("branchExists returns true for an existing local branch", async () => {
+    await createBranch(repoDir, "agentrium/existing");
+    expect(await branchExists(repoDir, "agentrium/existing")).toBe(true);
+  });
+
+  it("branchExists returns false for a non-existent branch", async () => {
+    expect(await branchExists(repoDir, "agentrium/no-such-branch")).toBe(false);
+  });
+
+  it("getUncommittedFiles returns modified, untracked, deleted, and staged files", async () => {
+    // set up a file to delete in a separate commit first
+    fs.writeFileSync(path.join(repoDir, "to-delete.ts"), "export {}");
+    execSync("git add to-delete.ts", { cwd: repoDir });
+    execSync('git commit -m "add file"', { cwd: repoDir });
+
+    // modified
+    fs.writeFileSync(path.join(repoDir, "README.md"), "changed");
+    // untracked
+    fs.writeFileSync(path.join(repoDir, "untracked.ts"), "export {}");
+    // staged new file (added to index, not yet committed)
+    fs.writeFileSync(path.join(repoDir, "staged.ts"), "export {}");
+    execSync("git add staged.ts", { cwd: repoDir });
+    // deleted
+    fs.rmSync(path.join(repoDir, "to-delete.ts"));
+
+    const files = await getUncommittedFiles(repoDir);
+    expect(files).toContain("README.md");
+    expect(files).toContain("untracked.ts");
+    expect(files).toContain("staged.ts");
+    expect(files).toContain("to-delete.ts");
+  });
+
+  it("getUncommittedFiles deduplicates files that appear in multiple status categories", async () => {
+    // A file staged then modified again appears in both staged and modified
+    fs.writeFileSync(path.join(repoDir, "double.ts"), "v1");
+    execSync("git add double.ts", { cwd: repoDir });
+    fs.writeFileSync(path.join(repoDir, "double.ts"), "v2");
+
+    const files = await getUncommittedFiles(repoDir);
+    const count = files.filter((f) => f === "double.ts").length;
+    expect(count).toBe(1);
+  });
+
+  it("getUncommittedFiles returns empty array when working tree is clean", async () => {
+    const files = await getUncommittedFiles(repoDir);
+    expect(files).toHaveLength(0);
   });
 });
