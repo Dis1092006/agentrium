@@ -60,14 +60,14 @@ export function registerRunCommand(program: Command): void {
       console.log(chalk.blue(`Run: ${runId}`));
 
       // 4. Build pipeline config
-      const primaryRepo = repos[0]?.path ?? null;
+      const repoPaths = repos.map((r) => r.path);
 
       const pipelineConfig: PipelineConfig = {
         checkpoints: options.checkpoints
           ? workspaceConfig.pipelineSettings.checkpoints as PipelineConfig["checkpoints"]
           : "none",
         skipStages: workspaceConfig.pipelineSettings.skipStages as Stage[],
-        repoPath: primaryRepo,
+        repoPaths,
       };
 
       // 5. Run pipeline
@@ -84,7 +84,7 @@ export function registerRunCommand(program: Command): void {
       const copilotTimeoutMinutes = Number.isFinite(rawCopilotTimeout) && rawCopilotTimeout >= 1
         ? Math.floor(rawCopilotTimeout)
         : 5;
-      const runner = new PipelineRunner(store, runId, contextPrompt, maxReviewIterations, pipelineConfig.repoPath, agentTimeoutMinutes, copilotEnabled, copilotTimeoutMinutes);
+      const runner = new PipelineRunner(store, runId, contextPrompt, maxReviewIterations, repoPaths, agentTimeoutMinutes, copilotEnabled, copilotTimeoutMinutes);
       await runner.runPipeline(task, pipelineConfig, includeOptional);
     });
 }

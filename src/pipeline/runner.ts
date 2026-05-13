@@ -8,7 +8,7 @@ import { promptCheckpoint } from "./checkpoint.js";
 import { createAgentByName } from "../agents/registry.js";
 import { ArtifactStore } from "../artifacts/store.js";
 import { ReviewProcess } from "../review/process.js";
-import { slugifyTask, createBranch, commitChanges, pushBranch, createPR } from "../git/operations.js";
+import { slugifyTask, createBranch, commitChanges, pushBranch, createPR, getUncommittedFiles } from "../git/operations.js";
 import { extractPrNumber, requestCopilotReview } from "../github/copilotReview.js";
 
 const ARTIFACT_STAGES: string[] = ["intake", ...STAGE_ORDER];
@@ -19,7 +19,7 @@ export class PipelineRunner {
   private readonly workspaceContext: string;
   private readonly maxReviewIterations: number;
   private readonly agentTimeoutMs: number | undefined;
-  private readonly repoPath: string | null;
+  private readonly repoPaths: string[];
   private readonly copilotReviewEnabled: boolean;
   private readonly copilotReviewTimeoutMs: number;
 
@@ -28,7 +28,7 @@ export class PipelineRunner {
     runId: string,
     workspaceContext: string,
     maxReviewIterations: number,
-    repoPath: string | null = null,
+    repoPaths: string[] = [],
     agentTimeoutMinutes: number | null = null,
     copilotReviewEnabled: boolean = false,
     copilotReviewTimeoutMinutes: number = 5,
@@ -37,7 +37,7 @@ export class PipelineRunner {
     this.runId = runId;
     this.workspaceContext = workspaceContext;
     this.maxReviewIterations = maxReviewIterations;
-    this.repoPath = repoPath;
+    this.repoPaths = repoPaths;
     this.agentTimeoutMs = agentTimeoutMinutes ? agentTimeoutMinutes * 60_000 : undefined;
     this.copilotReviewEnabled = copilotReviewEnabled;
     this.copilotReviewTimeoutMs = copilotReviewTimeoutMinutes * 60_000;
@@ -88,24 +88,27 @@ export class PipelineRunner {
     console.log(chalk.blue(`Pipeline: ${stages.map((s) => s.stage).join(" → ")}`));
     console.log("");
 
-    // Create git branch in target repo
-    let branchName: string | null = null;
-    if (this.repoPath) {
-      branchName = `agentrium/${slugifyTask(task)}`;
-      try {
-        await createBranch(this.repoPath, branchName);
-        console.log(chalk.gray(`Branch: ${branchName}`));
-      } catch {
-        console.log(chalk.yellow(`Warning: could not create branch "${branchName}". Continuing without git integration.`));
-        branchName = null;
+    const branchName = this.repoPaths.length > 0 ? `agentrium/${slugifyTask(task)}` : null;
+
+    // Create git branch in each repo; track which ones succeeded
+    const activePaths: string[] = [];
+    if (branchName) {
+      for (const repoPath of this.repoPaths) {
+        try {
+          await createBranch(repoPath, branchName);
+          activePaths.push(repoPath);
+          console.log(chalk.gray(`Branch: ${branchName} (${repoPath})`));
+        } catch {
+          console.log(chalk.yellow(`Warning: could not create branch in "${repoPath}". Skipping git integration for this repo.`));
+        }
       }
     }
 
-    // prNumber is set when PR is created before the review stage
-    let prNumber = 0;
+    // prNumber is set for the first repo's PR (used for Copilot review)
+    let firstPrNumber = 0;
     const existingPrUrl = this.store.readMeta(this.runId).prUrl;
     if (existingPrUrl) {
-      prNumber = extractPrNumber(existingPrUrl);
+      firstPrNumber = extractPrNumber(existingPrUrl.split("\n")[0]);
     }
 
     for (const planned of stages) {
@@ -118,7 +121,8 @@ export class PipelineRunner {
       let result: StageResult | null;
 
       if (this.isReviewStage(planned.stage)) {
-        result = await this.runReviewStage(planned, task, branchName, prNumber);
+        const firstActive = activePaths[0] ?? null;
+        result = await this.runReviewStage(planned, task, firstActive, branchName, firstPrNumber);
       } else {
         result = await this.runStage(planned, task);
       }
@@ -146,29 +150,20 @@ export class PipelineRunner {
         }
       }
 
-      // Commit after checkpoint (only reached if not rejected)
-      if (this.repoPath && branchName && (planned.stage === "implementation" || planned.stage === "testing")) {
+      // Commit after checkpoint in all repos that have changes
+      if (branchName && activePaths.length > 0 && (planned.stage === "implementation" || planned.stage === "testing")) {
         const commitMsg = planned.stage === "implementation"
           ? `feat: ${task}`
           : `test: add tests for ${task}`;
-        try {
-          const committed = await commitChanges(this.repoPath, commitMsg);
-          if (committed) {
-            console.log(chalk.gray(`Committed changes for ${planned.stage} stage.`));
-          }
-        } catch (error) {
-          const message = error instanceof Error ? error.message : String(error);
-          console.log(chalk.yellow(`Warning: failed to commit changes for ${planned.stage} stage: ${message}`));
-        }
+        await this.commitToChangedRepos(activePaths, commitMsg);
       }
 
-      // Create PR after testing stage (before review), so Copilot can review it
-      if (planned.stage === "testing" && this.repoPath && branchName && !prNumber) {
-        const prUrl = await this.createPrForReview(task, branchName);
-        if (prUrl) {
-          prNumber = extractPrNumber(prUrl);
-          this.store.updatePrUrl(this.runId, prUrl);
-          console.log(chalk.green(`Pull request created: ${prUrl}`));
+      // Create PRs after testing stage for all repos with commits
+      if (planned.stage === "testing" && branchName && activePaths.length > 0 && !firstPrNumber) {
+        const prUrls = await this.createPrsForReview(task, activePaths, branchName);
+        if (prUrls.length > 0) {
+          firstPrNumber = extractPrNumber(prUrls[0]);
+          this.store.updatePrUrl(this.runId, prUrls.join("\n"));
         }
       }
     }
@@ -177,42 +172,68 @@ export class PipelineRunner {
     console.log(chalk.green(`\nPipeline completed for run ${this.runId}.`));
 
     // If PR was not yet created (e.g. testing stage was skipped), create it now
-    if (this.repoPath && branchName && !prNumber) {
-      try {
-        console.log(chalk.blue("\nCreating pull request..."));
-        await pushBranch(this.repoPath, branchName);
-        const prBody = this.buildPrBody(task);
-        const prUrl = createPR(this.repoPath, branchName, task, prBody);
-        this.store.updatePrUrl(this.runId, prUrl);
-        console.log(chalk.green(`Pull request created: ${prUrl}`));
-      } catch {
-        console.log(chalk.yellow(`Warning: could not create pull request. Push manually: git push origin ${branchName}`));
+    if (branchName && activePaths.length > 0 && !firstPrNumber) {
+      console.log(chalk.blue("\nCreating pull requests..."));
+      const prUrls: string[] = [];
+      for (const repoPath of activePaths) {
+        try {
+          await pushBranch(repoPath, branchName);
+          const prBody = this.buildPrBody(task);
+          const prUrl = createPR(repoPath, branchName, task, prBody);
+          prUrls.push(prUrl);
+          console.log(chalk.green(`Pull request created: ${prUrl}`));
+        } catch {
+          console.log(chalk.yellow(`Warning: could not create pull request for "${repoPath}". Push manually: git push origin ${branchName}`));
+        }
+      }
+      if (prUrls.length > 0) {
+        this.store.updatePrUrl(this.runId, prUrls.join("\n"));
       }
     }
   }
 
-  private async createPrForReview(task: string, branchName: string): Promise<string | null> {
-    if (!this.repoPath) return null;
-    try {
-      await pushBranch(this.repoPath, branchName);
-      const prBody = this.buildPrBody(task);
-      const prUrl = createPR(this.repoPath, branchName, task, prBody);
-      if (this.copilotReviewEnabled) {
-        const prNumber = extractPrNumber(prUrl);
-        if (prNumber) {
-          try {
-            requestCopilotReview(this.repoPath, prNumber);
-          } catch {
-            // Non-fatal: Copilot review will be skipped if request fails
+  private async commitToChangedRepos(repoPaths: string[], commitMsg: string): Promise<void> {
+    for (const repoPath of repoPaths) {
+      try {
+        const changed = await getUncommittedFiles(repoPath);
+        if (changed.length === 0) continue;
+        const committed = await commitChanges(repoPath, commitMsg);
+        if (committed) {
+          console.log(chalk.gray(`Committed changes in "${repoPath}".`));
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.log(chalk.yellow(`Warning: failed to commit in "${repoPath}": ${message}`));
+      }
+    }
+  }
+
+  private async createPrsForReview(task: string, repoPaths: string[], branchName: string): Promise<string[]> {
+    const prUrls: string[] = [];
+    for (const repoPath of repoPaths) {
+      try {
+        await pushBranch(repoPath, branchName);
+        const prBody = this.buildPrBody(task);
+        const prUrl = createPR(repoPath, branchName, task, prBody);
+        prUrls.push(prUrl);
+        console.log(chalk.green(`Pull request created: ${prUrl}`));
+
+        if (this.copilotReviewEnabled && prUrls.length === 1) {
+          const prNumber = extractPrNumber(prUrl);
+          if (prNumber) {
+            try {
+              requestCopilotReview(repoPath, prNumber);
+            } catch {
+              // Non-fatal
+            }
           }
         }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.log(chalk.yellow(`Warning: could not create pull request for "${repoPath}" before review: ${message}`));
       }
-      return prUrl;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      console.log(chalk.yellow(`Warning: could not create pull request before review: ${message}`));
-      return null;
     }
+    return prUrls;
   }
 
   private buildPrBody(task: string): string {
@@ -263,15 +284,16 @@ export class PipelineRunner {
   private async runReviewStage(
     planned: PlannedStage,
     task: string,
+    repoPath: string | null,
     branchName: string | null,
     prNumber: number,
   ): Promise<StageResult | null> {
     const startTime = Date.now();
 
     try {
-      const gitContext = (this.repoPath && branchName && prNumber)
+      const gitContext = (repoPath && branchName && prNumber)
         ? {
-            repoPath: this.repoPath,
+            repoPath,
             branchName,
             prNumber,
             copilotEnabled: this.copilotReviewEnabled,

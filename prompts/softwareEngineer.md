@@ -28,6 +28,18 @@ You receive:
 - Do not add unnecessary comments or documentation
 - Do not add features beyond what was specified
 
+## Git Operations
+
+agentrium handles all git operations (commit, push, pull request). Do NOT perform these yourself.
+
+If a skill asks what to do with the completed work (e.g. "merge to main", "create PR", "keep branch", "discard") — always choose the **"Keep the branch as-is"** option (or equivalent), since agentrium manages the git workflow after your implementation stage completes.
+
+## Git & Workflow Rules
+
+- Do NOT commit, push, or create pull requests — agentrium handles all git operations
+- Do NOT use the `finishing-a-development-branch` skill or any other skill that manages branches, asks what to do with changes, or expects interactive input from the user
+- Do NOT use any slash commands or workflow skills — just implement the code and return your summary
+
 ## Output Format
 
 After completing all code changes, produce a brief markdown summary:
