@@ -1,0 +1,58 @@
+# Run Artifacts
+
+This document describes how agents in a pipeline run communicate with each other through files on disk. It covers invariants only — the exact section structure of each artifact is defined by the corresponding agent prompt in [`prompts/`](../prompts).
+
+## Layout
+
+Every run writes to:
+
+```
+~/.agentrium/workspaces/<name>/runs/<run-id>/
+  01-intake.md
+  02-analysis.md
+  03-design.md           # only if --include design
+  04-architecture.md
+  05-implementation.md
+  06-testing.md
+  07-documentation.md    # only if --include documentation
+  08-review.md
+  meta.json
+```
+
+File numbering matches `ARTIFACT_STAGES` in [`src/pipeline/runner.ts`](../src/pipeline/runner.ts) (`["intake", ...STAGE_ORDER]`). Optional stages (`design`, `documentation`) are skipped silently when not opted in.
+
+## Artifacts as the inter-agent protocol
+
+Artifacts are not a log — they are the only channel between stages. For each planned stage, `PipelineRunner.assembleAgentContext` concatenates the workspace context plus every previously-saved artifact verbatim into the next agent's system prompt, under `## Previous Stage: <name>` headers. Anything an agent does not write into its artifact is invisible to all downstream stages.
+
+The required section structure of each artifact is fixed by the agent's prompt file:
+
+| File | Owner | Prompt |
+|---|---|---|
+| `02-analysis.md` | Product Manager | [`prompts/productManager.md`](../prompts/productManager.md) |
+| `03-design.md` | UX Designer | [`prompts/uxDesigner.md`](../prompts/uxDesigner.md) |
+| `04-architecture.md` | Architect | [`prompts/architect.md`](../prompts/architect.md) |
+| `05-implementation.md` | Software Engineer | [`prompts/softwareEngineer.md`](../prompts/softwareEngineer.md) |
+| `06-testing.md` | QA Engineer | [`prompts/qaEngineer.md`](../prompts/qaEngineer.md) |
+| `07-documentation.md` | Technical Writer | [`prompts/technicalWriter.md`](../prompts/technicalWriter.md) |
+| `08-review.md` | Review Arbiter | [`prompts/reviewArbiter.md`](../prompts/reviewArbiter.md) |
+
+`01-intake.md` is written by the runner from the original task description, not by an agent.
+
+`08-review.md` is the Arbiter's merge of two parallel reviewers (Logic + Security) and, when enabled, GitHub Copilot inline comments. The reviewer outputs themselves are not persisted as separate artifacts — only the merged result.
+
+## Invariants
+
+These properties are guaranteed by the runner regardless of which agents or prompts are in use:
+
+1. **Append-only across stages, overwrite within a stage.** Each stage writes its artifact once per execution. A rework loop (Arbiter verdict = "Request changes") re-runs `implementation → testing → review` and **overwrites** `05`, `06`, and `08`. The artifact set always reflects the *final* state of the run, not its history.
+2. **No cross-run memory.** A new run starts from the workspace context (`AGENTRIUM.md` + repo analysis) and the task description only. Prior runs in the same workspace are not loaded into agent context.
+3. **Resume is artifact-driven.** `agentrium resume <run-id>` rebuilds the planned stage list from config and skips any stage whose artifact file already exists. Do not add stage side effects that aren't gated by the artifact check.
+4. **Run-level state lives in `meta.json`.** Stage completion timestamps, branch name, PR URLs, and review iteration count are stored there, not in the per-stage Markdown.
+5. **Git operations are not artifacts.** Commit, push, and PR creation are performed by the runner at fixed boundaries (after `implementation`, after `testing`, before `review`) and are not driven by anything an agent writes.
+
+## Changing the protocol
+
+- To change what a stage produces, edit its prompt in `prompts/`. The schema in the prompt is authoritative.
+- To change what a stage *sees*, change `assembleAgentContext` or the `ARTIFACT_STAGES` order in `runner.ts`.
+- To add a new stage, extend `STAGE_ORDER` in `src/pipeline/types.ts`, add the agent + prompt, and register it in `STAGE_AGENT_MAP` (`src/pipeline/pipeline.ts`) and `AGENT_FACTORIES` (`src/agents/registry.ts`).
