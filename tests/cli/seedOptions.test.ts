@@ -1,6 +1,13 @@
 // tests/cli/seedOptions.test.ts
 import { describe, it, expect } from "vitest";
-import { parseSeedOptions, SeedOptionError } from "../../src/cli/seedOptions.js";
+import { parseSeedOptions, SeedOptionError, validateSeedCoverage } from "../../src/cli/seedOptions.js";
+import type { SeedableStage } from "../../src/cli/seedOptions.js";
+import type { PlannedStage } from "../../src/pipeline/pipeline.js";
+import type { Stage } from "../../src/pipeline/types.js";
+
+function planned(stages: Stage[]): PlannedStage[] {
+  return stages.map((s) => ({ stage: s, agentName: "x", hasCheckpoint: false }));
+}
 
 describe("parseSeedOptions", () => {
   it("returns empty seeds and undefined startFrom when no flags are passed", () => {
@@ -88,32 +95,21 @@ describe("parseSeedOptions error cases", () => {
   });
 });
 
-import { validateSeedCoverage } from "../../src/cli/seedOptions.js";
-import type { PlannedStage } from "../../src/pipeline/pipeline.js";
-
-function planned(stages: string[]): PlannedStage[] {
-  return stages.map((s) => ({
-    stage: s as any,
-    agentName: "x",
-    hasCheckpoint: false,
-  }));
-}
-
 describe("validateSeedCoverage", () => {
   it("is a no-op when startFrom is undefined", () => {
     expect(() =>
-      validateSeedCoverage(new Map(), undefined, planned(["analysis", "review"])),
+      validateSeedCoverage(new Map<SeedableStage, string>(), undefined, planned(["analysis", "review"])),
     ).not.toThrow();
   });
 
   it("passes when every preceding planned stage is seeded", () => {
-    const seeds = new Map<string, string>([
+    const seeds = new Map<SeedableStage, string>([
       ["analysis", "./a.md"],
       ["architecture", "./b.md"],
     ]);
     expect(() =>
       validateSeedCoverage(
-        seeds as any,
+        seeds,
         "implementation",
         planned(["analysis", "architecture", "implementation", "testing", "review"]),
       ),
@@ -123,7 +119,7 @@ describe("validateSeedCoverage", () => {
   it("passes when a preceding stage is absent from the planned list (i.e. already skipped via config)", () => {
     expect(() =>
       validateSeedCoverage(
-        new Map() as any,
+        new Map<SeedableStage, string>(),
         "implementation",
         planned(["implementation", "testing", "review"]),
       ),
@@ -131,10 +127,10 @@ describe("validateSeedCoverage", () => {
   });
 
   it("throws when a preceding planned stage has no seed", () => {
-    const seeds = new Map<string, string>([["architecture", "./b.md"]]);
+    const seeds = new Map<SeedableStage, string>([["architecture", "./b.md"]]);
     expect(() =>
       validateSeedCoverage(
-        seeds as any,
+        seeds,
         "implementation",
         planned(["analysis", "architecture", "implementation"]),
       ),
@@ -144,7 +140,7 @@ describe("validateSeedCoverage", () => {
   it("throws when startFrom is not in the planned list", () => {
     expect(() =>
       validateSeedCoverage(
-        new Map() as any,
+        new Map<SeedableStage, string>(),
         "design",
         planned(["analysis", "architecture", "implementation"]),
       ),
