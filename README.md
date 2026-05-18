@@ -187,6 +187,8 @@ All run artifacts are saved to:
   meta.json
 ```
 
+See [`docs/artifacts.md`](docs/artifacts.md) for the inter-agent protocol invariants (how stages communicate, rework loop semantics, resume behavior).
+
 ## Development
 
 To build and run from source:
