@@ -109,4 +109,37 @@ describe("ArtifactStore", () => {
     expect(runs[0].status).toBe("completed");
     expect(runs[0].stages).toHaveProperty("analysis");
   });
+
+  it("createRun persists seededStages and startFrom when provided", () => {
+    const runId = store.createRun("task", "ws", ["design"], ["analysis", "architecture"], "implementation");
+    const meta = store.readMeta(runId);
+    expect(meta.seededStages).toEqual(["analysis", "architecture"]);
+    expect(meta.startFrom).toBe("implementation");
+  });
+
+  it("createRun defaults seededStages to [] and startFrom to undefined", () => {
+    const runId = store.createRun("task");
+    const meta = store.readMeta(runId);
+    expect(meta.seededStages).toEqual([]);
+    expect(meta.startFrom).toBeUndefined();
+  });
+
+  it("readMeta backfills seededStages = [] for old runs missing the field", () => {
+    const runId = `run_legacy`;
+    const runDir = path.join(tmpDir, runId);
+    fs.mkdirSync(runDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(runDir, "meta.json"),
+      JSON.stringify({
+        runId,
+        task: "t",
+        status: "running",
+        createdAt: new Date().toISOString(),
+        stages: {},
+      }),
+    );
+    const meta = store.readMeta(runId);
+    expect(meta.seededStages).toEqual([]);
+    expect(meta.startFrom).toBeUndefined();
+  });
 });
