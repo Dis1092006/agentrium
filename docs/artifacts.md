@@ -56,8 +56,8 @@ These properties are guaranteed by the runner regardless of which agents or prom
 `agentrium run --seed <stage>=<path>` writes the file's contents to the stage's artifact file (e.g. `04-architecture.md`) **before** the pipeline starts. Seeded artifacts:
 
 - Are indistinguishable from agent-produced artifacts on disk and in `assembleAgentContext`.
-- Are recorded in `meta.json` under `seededStages: string[]`.
-- Bypass the agent for that stage but **do not** mark it as a normal completion — downstream agents simply see the file in their context.
+- Are recorded in `meta.json` under `seededStages: string[]`. The stage is also recorded under `meta.stages[stage].completedAt` (with the seed-write timestamp) just like a normal completion — `seededStages` is what tells the two apart.
+- Bypass the agent for that stage entirely — no LLM call, no checkpoint prompt.
 - Cooperate with `--start-from <stage>`: if used together, the pipeline slices `STAGE_ORDER` to begin at `<stage>` and validates that every preceding planned stage is seeded.
 
 Constraints:
