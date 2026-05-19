@@ -82,8 +82,9 @@ export class PipelineRunner {
     task: string,
     config: PipelineConfig,
     includeOptional: Stage[] = [],
+    startFrom?: Stage,
   ): Promise<void> {
-    const stages = buildPipelineStages(config, includeOptional);
+    const stages = buildPipelineStages(config, includeOptional, startFrom);
 
     console.log(chalk.blue(`Pipeline: ${stages.map((s) => s.stage).join(" → ")}`));
     console.log("");

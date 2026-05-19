@@ -19,12 +19,15 @@ const STAGE_AGENT_MAP: Record<Stage, string> = {
 export function buildPipelineStages(
   config: PipelineConfig,
   includeOptional: Stage[] = [],
+  startFrom?: Stage,
 ): PlannedStage[] {
   const includeSet = new Set(includeOptional);
+  const startOrderIdx = startFrom === undefined ? 0 : STAGE_ORDER.indexOf(startFrom);
 
   const stages = STAGE_ORDER.filter((stage) => {
     if (config.skipStages.includes(stage)) return false;
     if (isOptionalStage(stage) && !includeSet.has(stage)) return false;
+    if (STAGE_ORDER.indexOf(stage) < startOrderIdx) return false;
     return true;
   });
 

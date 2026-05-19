@@ -86,3 +86,32 @@ describe("buildPipelineStages", () => {
     expect(withCheckpoint).toEqual(["analysis", "review"]);
   });
 });
+
+describe("buildPipelineStages with startFrom", () => {
+  it("returns only stages from startFrom onward", () => {
+    const config: PipelineConfig = { checkpoints: "none", skipStages: [] };
+    const stages = buildPipelineStages(config, [], "implementation");
+    const names = stages.map((s) => s.stage);
+    expect(names).toEqual(["implementation", "testing", "review"]);
+  });
+
+  it("ignores startFrom if it falls inside an already-skipped stage", () => {
+    const config: PipelineConfig = { checkpoints: "none", skipStages: ["implementation"] };
+    const stages = buildPipelineStages(config, [], "implementation");
+    const names = stages.map((s) => s.stage);
+    expect(names).toEqual(["testing", "review"]);
+  });
+
+  it("returns empty when startFrom is past all planned stages", () => {
+    const config: PipelineConfig = { checkpoints: "none", skipStages: ["review"] };
+    const stages = buildPipelineStages(config, [], "review");
+    expect(stages).toEqual([]);
+  });
+
+  it("composes with includeOptional", () => {
+    const config: PipelineConfig = { checkpoints: "none", skipStages: [] };
+    const stages = buildPipelineStages(config, ["design"], "design");
+    const names = stages.map((s) => s.stage);
+    expect(names).toEqual(["design", "architecture", "implementation", "testing", "review"]);
+  });
+});

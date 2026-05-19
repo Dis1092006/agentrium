@@ -104,6 +104,24 @@ agentrium run "Quick fix" --no-checkpoints
 agentrium run "Fix bug" --workspace my-other-ws
 ```
 
+**Starting from the implementation stage with pre-written artifacts:**
+
+If you already have a design / plan written by hand or by another tool (e.g. the `superpowers` skill), you can skip the upstream agents and feed the artifacts straight in:
+
+```bash
+agentrium run "Add dispatch loop" \
+  --seed analysis=./docs/design.md \
+  --seed architecture=./docs/plan.md \
+  --start-from implementation
+```
+
+The Software Engineer agent receives both files as `## Previous Stage: analysis` and `## Previous Stage: architecture` in its context. Testing and review continue normally — Logic / Security / Copilot all see the seeded artifacts.
+
+Constraints:
+- Every planned stage before `--start-from` must be seeded (or marked in `Skip stages` config).
+- `--seed review=...` is not allowed.
+- `--seed intake=<file>` overrides the default task+workspace-context envelope.
+
 **Checkpoint controls** (shown at each checkpoint):
 - `[a]` Approve — continue to next stage
 - `[r]` Reject — abort the pipeline

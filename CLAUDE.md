@@ -35,6 +35,7 @@ Agentrium is a CLI that drives a software task through a fixed pipeline of LLM a
 
 1. **Agents are stateless and prompt-driven.** Each stage gets the workspace context plus the markdown of every prior artifact concatenated under `## Previous Stage: <name>` headers. To change what a stage "sees", change `assembleAgentContext` or the artifact filenames, not the agent code.
 2. **Resume is idempotent against the artifact store.** `resume <run-id>` rebuilds the planned stages from config and skips any whose artifact already exists; if all stages are done but no PR was opened (network failure mid-run), it will still push and open the PR. Don't add side effects to stages that aren't gated by an artifact check.
+3. **Stages can be pre-seeded.** `agentrium run --seed <stage>=<file> --start-from <stage>` writes the file's contents as the artifact for that stage **before** the pipeline starts and slices `STAGE_ORDER` so the run begins at `--start-from`. The Software Engineer (or any later agent) still receives the seeded markdown through `assembleAgentContext` as `## Previous Stage: <name>`. Seeded stages are recorded in `meta.json` (`seededStages`, `startFrom`). `review` cannot be seeded; `intake`, if seeded, replaces the default task+context envelope.
 
 ### Tests
 

@@ -122,7 +122,12 @@ export function registerResumeCommand(program: Command): void {
       store.updateStatus(runId, "running");
 
       const runner = new PipelineRunner(store, runId, contextPrompt, maxReviewIterations, repoPaths, agentTimeoutMinutes);
-      await runner.runPipeline(meta.task, pipelineConfig, includeOptional);
+      await runner.runPipeline(
+        meta.task,
+        pipelineConfig,
+        includeOptional,
+        meta.startFrom as Stage | undefined,
+      );
     });
 }
 

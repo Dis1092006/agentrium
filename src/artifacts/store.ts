@@ -21,6 +21,8 @@ export interface RunMeta {
   stages: Record<string, { completedAt: string }>;
   workspaceName: string;
   includeOptional: string[];
+  seededStages: string[];
+  startFrom?: string;
   prUrl?: string;
 }
 
@@ -32,7 +34,13 @@ export class ArtifactStore {
     fs.mkdirSync(baseDir, { recursive: true });
   }
 
-  createRun(task: string, workspaceName: string = "", includeOptional: string[] = []): string {
+  createRun(
+    task: string,
+    workspaceName: string = "",
+    includeOptional: string[] = [],
+    seededStages: string[] = [],
+    startFrom?: string,
+  ): string {
     const runId = `run_${crypto.randomBytes(6).toString("hex")}`;
     const runDir = path.join(this.baseDir, runId);
     fs.mkdirSync(runDir, { recursive: true });
@@ -45,6 +53,8 @@ export class ArtifactStore {
       stages: {},
       workspaceName,
       includeOptional,
+      seededStages,
+      startFrom,
     };
     fs.writeFileSync(path.join(runDir, "meta.json"), JSON.stringify(meta, null, 2));
 
@@ -74,7 +84,12 @@ export class ArtifactStore {
   readMeta(runId: string): RunMeta {
     const filePath = path.join(this.baseDir, runId, "meta.json");
     const raw = JSON.parse(fs.readFileSync(filePath, "utf-8"));
-    return { workspaceName: "", includeOptional: [], ...raw };
+    return {
+      workspaceName: "",
+      includeOptional: [],
+      seededStages: [],
+      ...raw,
+    };
   }
 
   removeStage(runId: string, stage: string): void {
