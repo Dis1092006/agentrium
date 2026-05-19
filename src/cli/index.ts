@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 import { Command } from "commander";
 import { createRequire } from "module";
+import { fileURLToPath } from "url";
+import { realpathSync } from "fs";
 import { registerInitCommand } from "./commands/init.js";
 import { registerRunCommand } from "./commands/run.js";
 import { registerWorkspacesCommand } from "./commands/workspaces.js";
@@ -31,9 +33,15 @@ export function createProgram(): Command {
 }
 
 // Only parse when this file is the direct entrypoint, not when imported as a module.
-const isMain =
-  process.argv[1] != null &&
-  import.meta.url.endsWith(process.argv[1].replace(/\\/g, "/"));
+// Resolve both paths through realpath so npm-link junctions and symlinks compare equal.
+const isMain = (() => {
+  if (process.argv[1] == null) return false;
+  try {
+    return realpathSync(fileURLToPath(import.meta.url)) === realpathSync(process.argv[1]);
+  } catch {
+    return false;
+  }
+})();
 
 if (isMain) {
   const program = createProgram();
