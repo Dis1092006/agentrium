@@ -114,4 +114,22 @@ describe("ControlChannel", () => {
     expect(ch.signal.aborted).toBe(true);
     ch.stop();
   });
+
+  it("drops a decision waiter when its abort signal fires (no cross-talk between checkpoints)", async () => {
+    const ch = new ControlChannel(file);
+    ch.start();
+
+    // First checkpoint loses a race -> its signal aborts.
+    const ac = new AbortController();
+    const stale = ch.awaitDecision("stage1", ac.signal);
+    void stale; // intentionally never awaited; it must NOT capture the next decision
+    ac.abort();
+
+    // Next checkpoint must receive the command for stage2.
+    const fresh = ch.awaitDecision("stage2");
+    send("approve", "stage2");
+    await ch.processPending();
+    expect(await fresh).toBe("approve");
+    ch.stop();
+  });
 });

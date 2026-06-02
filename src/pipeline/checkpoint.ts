@@ -55,9 +55,9 @@ export class StdinCheckpointPrompter implements CheckpointPrompter {
 
 export class ControlChannelCheckpointPrompter implements CheckpointPrompter {
   constructor(private readonly channel: ControlChannel, private readonly logger: EventLogger) {}
-  async prompt(stage: Stage, artifactPreview: string): Promise<CheckpointDecision> {
+  async prompt(stage: Stage, artifactPreview: string, signal?: AbortSignal): Promise<CheckpointDecision> {
     this.logger.emit("stage", "checkpoint_awaiting", { stage, data: { preview: artifactPreview.slice(0, 3000) } });
-    const decision = await this.channel.awaitDecision(stage);
+    const decision = await this.channel.awaitDecision(stage, signal);
     this.logger.emit("stage", "checkpoint_decided", { stage, data: { decision } });
     return decision;
   }

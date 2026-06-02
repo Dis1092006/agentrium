@@ -66,8 +66,18 @@ export class ControlChannel {
     return new Promise((resolve) => this.gateWaiters.push(resolve));
   }
 
-  awaitDecision(_stage: string): Promise<CheckpointDecision> {
-    return new Promise((resolve) => this.decisionWaiters.push(resolve));
+  awaitDecision(_stage: string, signal?: AbortSignal): Promise<CheckpointDecision> {
+    return new Promise((resolve) => {
+      const waiter = (d: CheckpointDecision) => resolve(d);
+      this.decisionWaiters.push(waiter);
+      // If the caller loses a race (signal aborts), drop this waiter so a later
+      // decision is not delivered to this dead promise. The promise stays
+      // unresolved by design — the race already settled via the winner.
+      signal?.addEventListener("abort", () => {
+        const i = this.decisionWaiters.indexOf(waiter);
+        if (i >= 0) this.decisionWaiters.splice(i, 1);
+      }, { once: true });
+    });
   }
 
   private apply(cmd: ControlCommand): void {
