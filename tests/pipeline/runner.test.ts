@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { PipelineRunner } from "../../src/pipeline/runner.js";
 import { ArtifactStore } from "../../src/artifacts/store.js";
-import { ControlChannel } from "../../src/observability/controlChannel.js";
 import { eventsPathFor, controlPathFor, SCHEMA_VERSION } from "@agentrium/contract";
 import fs from "fs";
 import path from "path";
@@ -167,40 +166,16 @@ describe("PipelineRunner telemetry + control", () => {
     const runDir = store.runDir(runId);
     const controlFile = controlPathFor(runDir);
 
-    // Capture the ControlChannel instance created by PipelineRunner so we can
-    // drive processPending() directly — avoiding reliance on fs.watch, which is
-    // unreliable on Windows for in-process file appends.
-    let capturedChannel: ControlChannel | null = null;
-    const realStart = ControlChannel.prototype.start;
-    vi.spyOn(ControlChannel.prototype, "start").mockImplementation(function (this: ControlChannel) {
-      capturedChannel = this;
-      return realStart.call(this);
-    });
-
     queryImpl.mockImplementation((args: { options: { abortController: AbortController } }) => {
       const signal = args.options.abortController.signal;
       return (async function* () {
         yield { type: "assistant", message: { content: [{ type: "text", text: "working" }] } };
-        // Cancel now that the stage is in flight.
-        fs.appendFileSync(
-          controlFile,
-          JSON.stringify({ schemaVersion: SCHEMA_VERSION, seq: 1, ts: new Date().toISOString(), command: "cancel" }) + "\n",
-        );
-        // Drive processPending() directly (test seam) so the cancel is applied
-        // without depending on fs.watch firing — fs.watch is unreliable on Windows
-        // for in-process appends within the same event loop tick.
-        if (capturedChannel) {
-          await capturedChannel.processPending();
-        }
-        // If the abort fired synchronously, the signal is already aborted here.
-        // If not (shouldn't happen after processPending), wait briefly.
-        if (!signal.aborted) {
-          await new Promise<void>((resolve) => {
-            signal.addEventListener("abort", () => resolve(), { once: true });
-            setTimeout(resolve, 2000);
-          });
-        }
-        // End the generator — BaseAgent sees ac.signal.aborted and throws abortError().
+        // Cancel now that the stage is in flight; ControlChannel polling picks it up.
+        fs.appendFileSync(controlFile, JSON.stringify({ schemaVersion: SCHEMA_VERSION, seq: 1, ts: new Date().toISOString(), command: "cancel" }) + "\n");
+        await new Promise<void>((_, reject) => {
+          signal.addEventListener("abort", () => reject(new Error("aborted")), { once: true });
+        });
+        yield { result: "never reached" };
       })();
     });
 
@@ -212,14 +187,9 @@ describe("PipelineRunner telemetry + control", () => {
     const runner = new PipelineRunner(store, runId, "workspace context", 3);
     await runner.runPipeline("test in-flight cancel task", config);
 
-    vi.restoreAllMocks();
-
     expect(store.readMeta(runId).status).toBe("aborted");
-    const types = fs
-      .readFileSync(eventsPathFor(runDir), "utf-8")
-      .trim()
-      .split("\n")
-      .map((l) => JSON.parse(l).type);
+    const types = fs.readFileSync(eventsPathFor(store.runDir(runId)), "utf-8")
+      .trim().split("\n").map((l) => JSON.parse(l).type);
     expect(types).toContain("run_aborted");
     expect(types).not.toContain("run_failed");
   });

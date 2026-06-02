@@ -2,6 +2,8 @@ import fs from "node:fs";
 import { controlPathFor, type ControlCommand } from "@agentrium/contract";
 import type { CheckpointDecision } from "../pipeline/types.js";
 
+const POLL_INTERVAL_MS = 300;
+
 export class ControlChannel {
   private _paused = false;
   private _stepMode = false;
@@ -9,6 +11,7 @@ export class ControlChannel {
   private stepToken = 0;
   private cursor = 0; // char offset (UTF-16 code units) already consumed
   private watcher: fs.FSWatcher | null = null;
+  private pollTimer: ReturnType<typeof setInterval> | null = null;
 
   private readonly abort = new AbortController();
   private gateWaiters: Array<() => void> = [];
@@ -28,17 +31,22 @@ export class ControlChannel {
   start(): void {
     void this.processPending();
     try {
-      // Windows fs.watch may miss/duplicate events; processPending is idempotent
-      // (cursor-guarded), and callers may also poll.
-      this.watcher = fs.watch(this.filePath, () => this.processPending());
+      // fs.watch is best-effort (unreliable on Windows); the poll timer below guarantees pickup.
+      this.watcher = fs.watch(this.filePath, () => { void this.processPending(); });
     } catch {
-      // No watcher (e.g. file missing) — degrade silently; callers may still poll.
+      // No watcher (e.g. file missing) — degrade silently; the poll timer still runs.
     }
+    this.pollTimer = setInterval(() => { void this.processPending(); }, POLL_INTERVAL_MS);
+    this.pollTimer.unref?.();
   }
 
   stop(): void {
     this.watcher?.close();
     this.watcher = null;
+    if (this.pollTimer) {
+      clearInterval(this.pollTimer);
+      this.pollTimer = null;
+    }
   }
 
   /** Test seam + watcher callback: read and apply any new command lines. */

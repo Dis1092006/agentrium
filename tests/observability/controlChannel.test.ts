@@ -115,6 +115,16 @@ describe("ControlChannel", () => {
     ch.stop();
   });
 
+  it("picks up a command via polling without an explicit processPending call", async () => {
+    const ch = new ControlChannel(file);
+    ch.start();
+    send("pause");
+    // wait for the poll interval (300ms) to apply it
+    await new Promise((r) => setTimeout(r, 500));
+    expect(ch.paused).toBe(true);
+    ch.stop();
+  });
+
   it("drops a decision waiter when its abort signal fires (no cross-talk between checkpoints)", async () => {
     const ch = new ControlChannel(file);
     ch.start();
