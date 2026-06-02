@@ -54,10 +54,17 @@ describe("ControlChannel", () => {
     await ch.processPending();
     await first; // released once
 
+    // Re-armed: the next boundary stays gated until another step arrives.
     let secondResolved = false;
-    ch.awaitGateClear().then(() => { secondResolved = true; });
+    const second = ch.awaitGateClear().then(() => { secondResolved = true; });
     await ch.processPending();
-    expect(secondResolved).toBe(false); // re-armed, still gated
+    await new Promise((r) => setImmediate(r)); // flush microtasks
+    expect(secondResolved).toBe(false);
+
+    send("step");
+    await ch.processPending();
+    await second;
+    expect(secondResolved).toBe(true);
     ch.stop();
   });
 
@@ -80,6 +87,17 @@ describe("ControlChannel", () => {
     send("approve", "analysis");
     await ch.processPending();
     expect(await decision).toBe("approve");
+    ch.stop();
+  });
+
+  it("cancel resolves a pending decision so the runner cannot hang", async () => {
+    const ch = new ControlChannel(file);
+    ch.start();
+    const decision = ch.awaitDecision("analysis");
+    send("cancel");
+    await ch.processPending();
+    expect(await decision).toBe("reject");
+    expect(ch.cancelled).toBe(true);
     ch.stop();
   });
 

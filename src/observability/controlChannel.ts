@@ -7,7 +7,7 @@ export class ControlChannel {
   private _stepMode = false;
   private _cancelled = false;
   private stepToken = 0;
-  private cursor = 0; // byte offset already consumed
+  private cursor = 0; // char offset (UTF-16 code units) already consumed
   private watcher: fs.FSWatcher | null = null;
 
   private readonly abort = new AbortController();
@@ -26,8 +26,10 @@ export class ControlChannel {
   get signal(): AbortSignal { return this.abort.signal; }
 
   start(): void {
-    this.processPending();
+    void this.processPending();
     try {
+      // Windows fs.watch may miss/duplicate events; processPending is idempotent
+      // (cursor-guarded), and callers may also poll.
       this.watcher = fs.watch(this.filePath, () => this.processPending());
     } catch {
       // No watcher (e.g. file missing) — degrade silently; callers may still poll.
@@ -78,8 +80,14 @@ export class ControlChannel {
       case "cancel":
         this._cancelled = true;
         this.abort.abort();
+        // Resolve any pending checkpoint decision so a runner blocked on
+        // awaitDecision aborts (reject) instead of hanging forever.
+        while (this.decisionWaiters.length > 0) {
+          this.decisionWaiters.shift()?.("reject");
+        }
         break;
       case "approve": case "reject": case "skip": {
+        // A decision with no pending waiter is discarded (fire-and-forget sender).
         const waiter = this.decisionWaiters.shift();
         if (waiter) waiter(cmd.command as CheckpointDecision);
         break;
@@ -89,6 +97,7 @@ export class ControlChannel {
   }
 
   private canPass(): boolean {
+    // After cancel, everything passes (and consumeStep is a no-op) so no waiter hangs.
     if (this._cancelled) return true;
     if (this._paused) return false;
     if (this._stepMode) return this.stepToken > 0;
