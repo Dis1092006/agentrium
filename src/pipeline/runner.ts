@@ -141,6 +141,7 @@ export class PipelineRunner {
         return;
       }
 
+      this.eventLog.emit("stage", "stage_started", { stage: planned.stage });
       let result: StageResult | null;
 
       if (this.isReviewStage(planned.stage)) {
@@ -148,6 +149,10 @@ export class PipelineRunner {
         result = await this.runReviewStage(planned, task, firstActive, branchName, firstPrNumber);
       } else {
         result = await this.runStage(planned, task);
+      }
+
+      if (result) {
+        this.eventLog.emit("stage", "stage_completed", { stage: planned.stage, data: { durationMs: result.durationMs } });
       }
 
       if (!result) {
@@ -290,7 +295,6 @@ export class PipelineRunner {
   }
 
   private async runStage(planned: PlannedStage, task: string): Promise<StageResult | null> {
-    this.eventLog.emit("stage", "stage_started", { stage: planned.stage });
     const spinner = ora(`${planned.agentName} working on ${planned.stage}...`).start();
     const startTime = Date.now();
 
@@ -308,7 +312,6 @@ export class PipelineRunner {
       const durationMs = Date.now() - startTime;
 
       spinner.succeed(`${planned.stage} complete (${(durationMs / 1000).toFixed(1)}s)`);
-      this.eventLog.emit("stage", "stage_completed", { stage: planned.stage, data: { durationMs } });
 
       return {
         stage: planned.stage,
@@ -330,8 +333,8 @@ export class PipelineRunner {
   }
 
   private emitSdkMessage(stage: string, message: unknown): void {
-    const m = message as { message?: { content?: Array<Record<string, unknown>> } };
-    const blocks = m?.message?.content ?? [];
+    const m = message as { message?: { content?: Array<Record<string, unknown>> }; content?: Array<Record<string, unknown>> };
+    const blocks = m?.message?.content ?? m?.content ?? [];
     for (const block of blocks) {
       if (block.type === "tool_use") {
         this.eventLog.emit("activity", "tool_use", { stage, data: { name: block.name, inputSummary: JSON.stringify(block.input ?? {}).slice(0, 200) } });
@@ -391,6 +394,7 @@ export class PipelineRunner {
     } catch (error) {
       console.log(chalk.red("Review stage failed"));
       this.store.updateStatus(this.runId, "failed");
+      this.control.stop();
       throw error;
     }
   }
