@@ -1,3 +1,5 @@
+import path from "node:path";
+
 // The on-disk contract between an agentrium run (producer of events, consumer
 // of control) and any observer (consumer of events, producer of control).
 // Bump SCHEMA_VERSION on any breaking change to EventRecord/ControlCommand.
@@ -42,8 +44,6 @@ export interface ControlCommand {
   command: ControlCommandName;
   stage?: string;
 }
-
-import path from "node:path";
 
 export function eventsPathFor(runDir: string): string {
   return path.join(runDir, EVENTS_FILE);

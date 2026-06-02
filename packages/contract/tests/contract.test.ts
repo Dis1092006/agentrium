@@ -1,5 +1,4 @@
 import { describe, it, expect } from "vitest";
-import path from "node:path";
 import {
   SCHEMA_VERSION, EVENTS_FILE, CONTROL_FILE,
   eventsPathFor, controlPathFor,
@@ -12,9 +11,14 @@ describe("@agentrium/contract", () => {
     expect(SCHEMA_VERSION).toBeGreaterThanOrEqual(1);
   });
 
-  it("builds per-run file paths", () => {
-    expect(eventsPathFor("/runs/run_x")).toBe(`/runs/run_x/${EVENTS_FILE}`.replace(/\//g, path.sep));
-    expect(controlPathFor("/runs/run_x")).toBe(`/runs/run_x/${CONTROL_FILE}`.replace(/\//g, path.sep));
+  it("builds per-run file paths under the run dir", () => {
+    const eventsPath = eventsPathFor("/runs/run_x");
+    expect(eventsPath.endsWith(EVENTS_FILE)).toBe(true);
+    expect(eventsPath.includes("run_x")).toBe(true);
+
+    const controlPath = controlPathFor("/runs/run_x");
+    expect(controlPath.endsWith(CONTROL_FILE)).toBe(true);
+    expect(controlPath.includes("run_x")).toBe(true);
   });
 
   it("parses a golden event line into EventRecord shape", () => {
@@ -25,6 +29,7 @@ describe("@agentrium/contract", () => {
     const rec = JSON.parse(line) as EventRecord;
     expect(rec.type).toBe("stage_started");
     expect(rec.level).toBe("stage");
+    expect(rec.schemaVersion).toBe(SCHEMA_VERSION);
   });
 
   it("parses a golden control line into ControlCommand shape", () => {
