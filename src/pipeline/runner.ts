@@ -262,7 +262,7 @@ export class PipelineRunner {
       const agent = createAgentByName(planned.agentName);
       const context = this.assembleAgentContext(planned.stage);
       const taskDesc = this.buildTaskDescription(planned.stage, task);
-      const result = await agent.run(context, taskDesc, this.agentTimeoutMs);
+      const result = await agent.run(context, taskDesc, { timeoutMs: this.agentTimeoutMs });
 
       this.store.saveArtifact(this.runId, planned.stage, result.artifact);
       const durationMs = Date.now() - startTime;

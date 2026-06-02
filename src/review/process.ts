@@ -144,8 +144,8 @@ export class ReviewProcess {
 
       try {
         [logicResult, securityResult] = await Promise.all([
-          createAgentByName("code-reviewer-logic").run(context, reviewTaskDesc, this.agentTimeoutMs),
-          createAgentByName("code-reviewer-security").run(context, reviewTaskDesc, this.agentTimeoutMs),
+          createAgentByName("code-reviewer-logic").run(context, reviewTaskDesc, { timeoutMs: this.agentTimeoutMs }),
+          createAgentByName("code-reviewer-security").run(context, reviewTaskDesc, { timeoutMs: this.agentTimeoutMs }),
         ]);
         reviewSpinner.succeed(`Code reviews complete${iterLabel}`);
       } catch (error) {
@@ -196,7 +196,7 @@ export class ReviewProcess {
           originalTask,
           copilotFindings,
         );
-        arbiterResult = await createAgentByName("review-arbiter").run(context, arbiterTaskDesc, this.agentTimeoutMs);
+        arbiterResult = await createAgentByName("review-arbiter").run(context, arbiterTaskDesc, { timeoutMs: this.agentTimeoutMs });
         const verdict = parseVerdict(arbiterResult.artifact);
         arbiterSpinner.succeed(`Arbiter verdict${iterLabel}: ${verdict}`);
 
@@ -244,7 +244,7 @@ export class ReviewProcess {
           originalTask,
           iteration,
         );
-        const fixResult = await createAgentByName("software-engineer").run(context, reworkDesc, this.agentTimeoutMs);
+        const fixResult = await createAgentByName("software-engineer").run(context, reworkDesc, { timeoutMs: this.agentTimeoutMs });
         this.store.saveArtifact(this.runId, `rework_fix_v${iteration}`, fixResult.artifact);
         fixSpinner.succeed(`Fixes applied (rework ${iteration})`);
       } catch (error) {
@@ -277,7 +277,7 @@ export class ReviewProcess {
           `Re-verify after rework ${iteration}. ` +
           `The Software Engineer made fixes based on review feedback. ` +
           `Run tests and verify the fixes are correct.`;
-        const qaResult = await createAgentByName("qa-engineer").run(context, qaDesc, this.agentTimeoutMs);
+        const qaResult = await createAgentByName("qa-engineer").run(context, qaDesc, { timeoutMs: this.agentTimeoutMs });
         this.store.saveArtifact(this.runId, `rework_qa_v${iteration}`, qaResult.artifact);
         qaSpinner.succeed(`Re-verification complete (rework ${iteration})`);
       } catch (error) {
