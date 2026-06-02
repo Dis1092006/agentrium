@@ -142,4 +142,12 @@ describe("ArtifactStore", () => {
     expect(meta.seededStages).toEqual([]);
     expect(meta.startFrom).toBeUndefined();
   });
+
+  describe("ArtifactStore.runDir", () => {
+    it("returns the directory for a run id", () => {
+      const runId = store.createRun("task");
+      expect(store.runDir(runId)).toBe(path.join(tmpDir, runId));
+      expect(fs.existsSync(store.runDir(runId))).toBe(true);
+    });
+  });
 });
