@@ -1,9 +1,15 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { PipelineRunner } from "../../src/pipeline/runner.js";
 import { ArtifactStore } from "../../src/artifacts/store.js";
+import { eventsPathFor, controlPathFor, SCHEMA_VERSION } from "@agentrium/contract";
 import fs from "fs";
 import path from "path";
 import os from "os";
+
+const queryImpl = vi.fn();
+vi.mock("@anthropic-ai/claude-agent-sdk", () => ({
+  query: (args: unknown) => queryImpl(args),
+}));
 
 describe("PipelineRunner", () => {
   let tmpDir: string;
@@ -71,5 +77,87 @@ describe("PipelineRunner", () => {
     const meta = store.readMeta(runId);
     expect(meta.stages).toHaveProperty("analysis");
     expect(meta.stages).not.toHaveProperty("architecture");
+  });
+});
+
+describe("PipelineRunner telemetry + control", () => {
+  let tmpDir: string;
+  let store: ArtifactStore;
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "agentrium-runner-telemetry-"));
+    store = new ArtifactStore(tmpDir);
+    queryImpl.mockReset();
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true });
+  });
+
+  it("telemetry events written: run_started, stage_started, stage_completed, run_completed", async () => {
+    // Normal generator that completes immediately
+    queryImpl.mockImplementation(() =>
+      (async function* () {
+        yield { type: "assistant", content: "Working..." };
+        yield { result: "analysis artifact content" };
+      })()
+    );
+
+    const runId = store.createRun("test telemetry task");
+    const config = {
+      checkpoints: "none" as const,
+      skipStages: ["architecture", "implementation", "testing", "documentation", "review"] as import("../../src/pipeline/types.js").Stage[],
+    };
+
+    const runner = new PipelineRunner(store, runId, "workspace context", 3);
+    await runner.runPipeline("test telemetry task", config);
+
+    const eventsPath = eventsPathFor(store.runDir(runId));
+    expect(fs.existsSync(eventsPath)).toBe(true);
+    const lines = fs.readFileSync(eventsPath, "utf-8")
+      .trim().split("\n").map((l) => JSON.parse(l));
+    const types = lines.map((l: { type: string }) => l.type);
+
+    expect(types).toContain("run_started");
+    expect(types).toContain("stage_started");
+    expect(types).toContain("stage_completed");
+    expect(types).toContain("run_completed");
+  });
+
+  it("cancel marks the run aborted", async () => {
+    // Mock that hangs until the abort signal fires — mirrors base.test.ts cooperative-abort style
+    queryImpl.mockImplementation((args: { options: { abortController: AbortController } }) => {
+      const signal = args.options.abortController.signal;
+      return (async function* () {
+        yield { type: "assistant", content: "Working..." };
+        await new Promise<void>((_, reject) => {
+          signal.addEventListener("abort", () => reject(new Error("aborted")), { once: true });
+        });
+        yield { result: "never reached" };
+      })();
+    });
+
+    const runId = store.createRun("test cancel task");
+    const runDir = store.runDir(runId);
+
+    // Write the cancel command BEFORE starting the pipeline so the channel
+    // picks it up at start()/first gate — deterministic on Windows.
+    const cancelCmd = JSON.stringify({
+      schemaVersion: SCHEMA_VERSION,
+      seq: 0,
+      ts: new Date().toISOString(),
+      command: "cancel",
+    });
+    fs.writeFileSync(controlPathFor(runDir), cancelCmd + "\n");
+
+    const config = {
+      checkpoints: "none" as const,
+      skipStages: ["architecture", "implementation", "testing", "documentation", "review"] as import("../../src/pipeline/types.js").Stage[],
+    };
+
+    const runner = new PipelineRunner(store, runId, "workspace context", 3);
+    await runner.runPipeline("test cancel task", config);
+
+    expect(store.readMeta(runId).status).toBe("aborted");
   });
 });

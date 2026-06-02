@@ -4,12 +4,15 @@ import ora from "ora";
 import type { Stage, PipelineConfig, StageResult } from "./types.js";
 import { STAGE_ORDER } from "./types.js";
 import { buildPipelineStages, type PlannedStage } from "./pipeline.js";
-import { StdinCheckpointPrompter } from "./checkpoint.js";
+import { StdinCheckpointPrompter, ControlChannelCheckpointPrompter, raceCheckpoint } from "./checkpoint.js";
 import { createAgentByName } from "../agents/registry.js";
 import { ArtifactStore } from "../artifacts/store.js";
 import { ReviewProcess } from "../review/process.js";
 import { slugifyTask, createBranch, commitChanges, pushBranch, createPR, getUncommittedFiles } from "../git/operations.js";
 import { extractPrNumber, requestCopilotReview } from "../github/copilotReview.js";
+import { eventsPathFor } from "@agentrium/contract";
+import { EventLogger } from "../observability/eventLog.js";
+import { ControlChannel } from "../observability/controlChannel.js";
 
 const ARTIFACT_STAGES: string[] = ["intake", ...STAGE_ORDER];
 
@@ -22,6 +25,8 @@ export class PipelineRunner {
   private readonly repoPaths: string[];
   private readonly copilotReviewEnabled: boolean;
   private readonly copilotReviewTimeoutMs: number;
+  private readonly eventLog: EventLogger;
+  private readonly control: ControlChannel;
 
   constructor(
     store: ArtifactStore,
@@ -41,6 +46,10 @@ export class PipelineRunner {
     this.agentTimeoutMs = agentTimeoutMinutes ? agentTimeoutMinutes * 60_000 : undefined;
     this.copilotReviewEnabled = copilotReviewEnabled;
     this.copilotReviewTimeoutMs = copilotReviewTimeoutMinutes * 60_000;
+    const runDir = store.runDir(runId);
+    this.eventLog = new EventLogger(eventsPathFor(runDir));
+    this.control = ControlChannel.forRunDir(runDir);
+    this.control.start();
   }
 
   assembleAgentContext(currentStage: Stage): string {
@@ -88,6 +97,7 @@ export class PipelineRunner {
 
     console.log(chalk.blue(`Pipeline: ${stages.map((s) => s.stage).join(" → ")}`));
     console.log("");
+    this.eventLog.emit("stage", "run_started", { data: { stages: stages.map((s) => s.stage) } });
 
     const branchName = this.repoPaths.length > 0 ? `agentrium/${slugifyTask(task)}` : null;
 
@@ -119,6 +129,18 @@ export class PipelineRunner {
         continue;
       }
 
+      if (this.control.paused || this.control.stepMode) {
+        this.eventLog.emit("stage", this.control.stepMode ? "step_awaiting" : "gate_paused", { stage: planned.stage });
+        await this.control.awaitGateClear();
+        this.eventLog.emit("stage", this.control.stepMode ? "stepped" : "gate_resumed", { stage: planned.stage });
+      }
+      if (this.control.cancelled) {
+        this.eventLog.emit("stage", "run_aborted");
+        this.store.updateStatus(this.runId, "aborted");
+        this.control.stop();
+        return;
+      }
+
       let result: StageResult | null;
 
       if (this.isReviewStage(planned.stage)) {
@@ -129,21 +151,35 @@ export class PipelineRunner {
       }
 
       if (!result) {
+        if (this.control.cancelled) {
+          this.eventLog.emit("stage", "run_aborted");
+          this.store.updateStatus(this.runId, "aborted");
+          this.control.stop();
+          return;
+        }
         console.log(chalk.yellow(`Stage "${planned.stage}" was skipped.`));
         continue;
       }
 
       if (planned.hasCheckpoint) {
-        const decision = await new StdinCheckpointPrompter().prompt(planned.stage, result.artifact);
+        const decision = await raceCheckpoint(
+          [new StdinCheckpointPrompter(), new ControlChannelCheckpointPrompter(this.control, this.eventLog)],
+          planned.stage,
+          result.artifact,
+        );
 
         if (decision === "reject") {
+          this.eventLog.emit("stage", "stage_rejected", { stage: planned.stage });
           this.store.removeStage(this.runId, planned.stage);
           console.log(chalk.red(`Stage "${planned.stage}" rejected. Aborting pipeline.`));
+          this.eventLog.emit("stage", "run_aborted");
           this.store.updateStatus(this.runId, "aborted");
+          this.control.stop();
           return;
         }
 
         if (decision === "skip") {
+          this.eventLog.emit("stage", "stage_skipped", { stage: planned.stage });
           console.log(chalk.yellow(`Skipping to next stage.`));
         }
       }
@@ -167,6 +203,8 @@ export class PipelineRunner {
     }
 
     this.store.updateStatus(this.runId, "completed");
+    this.eventLog.emit("stage", "run_completed");
+    this.control.stop();
     console.log(chalk.green(`\nPipeline completed for run ${this.runId}.`));
 
     // If PR was not yet created (e.g. testing stage was skipped), create it now
@@ -252,6 +290,7 @@ export class PipelineRunner {
   }
 
   private async runStage(planned: PlannedStage, task: string): Promise<StageResult | null> {
+    this.eventLog.emit("stage", "stage_started", { stage: planned.stage });
     const spinner = ora(`${planned.agentName} working on ${planned.stage}...`).start();
     const startTime = Date.now();
 
@@ -259,12 +298,17 @@ export class PipelineRunner {
       const agent = createAgentByName(planned.agentName);
       const context = this.assembleAgentContext(planned.stage);
       const taskDesc = this.buildTaskDescription(planned.stage, task);
-      const result = await agent.run(context, taskDesc, { timeoutMs: this.agentTimeoutMs });
+      const result = await agent.run(context, taskDesc, {
+        timeoutMs: this.agentTimeoutMs,
+        signal: this.control.signal,
+        onMessage: (m) => this.emitSdkMessage(planned.stage, m),
+      });
 
       this.store.saveArtifact(this.runId, planned.stage, result.artifact);
       const durationMs = Date.now() - startTime;
 
       spinner.succeed(`${planned.stage} complete (${(durationMs / 1000).toFixed(1)}s)`);
+      this.eventLog.emit("stage", "stage_completed", { stage: planned.stage, data: { durationMs } });
 
       return {
         stage: planned.stage,
@@ -273,9 +317,30 @@ export class PipelineRunner {
         durationMs,
       };
     } catch (error) {
+      if (this.control.cancelled) {
+        spinner.stop();
+        return null; // cancel is handled by the gate/loop, not a failure
+      }
       spinner.fail(`${planned.stage} failed`);
+      this.eventLog.emit("stage", "run_failed", { stage: planned.stage, data: { error: String(error) } });
       this.store.updateStatus(this.runId, "failed");
+      this.control.stop();
       throw error;
+    }
+  }
+
+  private emitSdkMessage(stage: string, message: unknown): void {
+    const m = message as { message?: { content?: Array<Record<string, unknown>> } };
+    const blocks = m?.message?.content ?? [];
+    for (const block of blocks) {
+      if (block.type === "tool_use") {
+        this.eventLog.emit("activity", "tool_use", { stage, data: { name: block.name, inputSummary: JSON.stringify(block.input ?? {}).slice(0, 200) } });
+      } else if (block.type === "tool_result") {
+        this.eventLog.emit("activity", "tool_result", { stage, data: { summary: JSON.stringify(block.content ?? "").slice(0, 200) } });
+      } else if (block.type === "text") {
+        this.eventLog.emit("activity", "assistant_text", { stage, data: { text: String(block.text ?? "").slice(0, 500) } });
+        this.eventLog.emit("raw", "assistant_text_delta", { stage, data: { text: block.text } });
+      }
     }
   }
 
