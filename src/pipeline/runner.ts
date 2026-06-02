@@ -4,7 +4,7 @@ import ora from "ora";
 import type { Stage, PipelineConfig, StageResult } from "./types.js";
 import { STAGE_ORDER } from "./types.js";
 import { buildPipelineStages, type PlannedStage } from "./pipeline.js";
-import { promptCheckpoint } from "./checkpoint.js";
+import { StdinCheckpointPrompter } from "./checkpoint.js";
 import { createAgentByName } from "../agents/registry.js";
 import { ArtifactStore } from "../artifacts/store.js";
 import { ReviewProcess } from "../review/process.js";
@@ -134,10 +134,7 @@ export class PipelineRunner {
       }
 
       if (planned.hasCheckpoint) {
-        const decision = await promptCheckpoint(
-          planned.stage,
-          result.artifact,
-        );
+        const decision = await new StdinCheckpointPrompter().prompt(planned.stage, result.artifact);
 
         if (decision === "reject") {
           this.store.removeStage(this.runId, planned.stage);
