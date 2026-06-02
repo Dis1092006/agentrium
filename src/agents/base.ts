@@ -38,36 +38,32 @@ export class BaseAgent {
     }
     let timeoutId: ReturnType<typeof setTimeout> | undefined;
     if (timeoutMs) {
-      timeoutId = setTimeout(() => {
-        timedOut = true;
-        ac.abort();
-      }, timeoutMs);
+      timeoutId = setTimeout(() => { timedOut = true; ac.abort(); }, timeoutMs);
     }
+
+    const timeoutError = () =>
+      new Error(`Agent "${this.name}" timed out after ${Math.round((timeoutMs ?? 0) / 60_000)} minutes`);
+    const abortError = () => new Error(`Agent "${this.name}" was aborted`);
 
     try {
       let result = "";
-      for await (const message of query({
-        prompt: taskDescription,
-        options: {
-          systemPrompt: fullPrompt,
-          allowedTools: this.tools,
-          permissionMode: "default",
-          abortController: ac,
-        },
-      })) {
-        try {
-          onMessage?.(message);
-        } catch {
-          /* observers never break the run */
+      try {
+        for await (const message of query({
+          prompt: taskDescription,
+          options: { systemPrompt: fullPrompt, allowedTools: this.tools, permissionMode: "default", abortController: ac },
+        })) {
+          try { onMessage?.(message); } catch { /* observers never break the run */ }
+          if ("result" in message) result = (message as { result: string }).result;
         }
-        if ("result" in message) result = (message as { result: string }).result;
+      } catch (err) {
+        // The real SDK throws when the controller aborts; classify it.
+        if (timedOut) throw timeoutError();
+        if (ac.signal.aborted) throw abortError();
+        throw err;
       }
-      if (timedOut) {
-        throw new Error(`Agent "${this.name}" timed out after ${Math.round((timeoutMs ?? 0) / 60_000)} minutes`);
-      }
-      if (ac.signal.aborted && !timedOut) {
-        throw new Error(`Agent "${this.name}" was aborted`);
-      }
+      // Safety net for iterators that finish without throwing on abort (e.g. test mocks).
+      if (timedOut) throw timeoutError();
+      if (ac.signal.aborted) throw abortError();
       if (!result) {
         throw new Error(`Agent "${this.name}" produced no output for task: ${taskDescription.slice(0, 100)}`);
       }
