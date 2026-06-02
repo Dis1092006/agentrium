@@ -1,0 +1,23 @@
+{
+  "name": "@agentrium/contract",
+  "version": "0.1.0",
+  "description": "On-disk event/control contract for agentrium run observability",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "typescript": "^6.0.2"
+  },
+  "license": "ISC"
+}
