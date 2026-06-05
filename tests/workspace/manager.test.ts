@@ -3,6 +3,7 @@ import {
   findGitRepos,
   generateAgentriumMd,
   getWorkspacesDir,
+  getRunsDir,
 } from "../../src/workspace/manager.js";
 import fs from "fs";
 import path from "path";
@@ -48,5 +49,19 @@ describe("workspace manager", () => {
     const dir = getWorkspacesDir();
     expect(dir).toContain(".agentrium");
     expect(dir).toContain("workspaces");
+  });
+});
+
+describe("workspace path helpers", () => {
+  afterEach(() => { delete process.env.AGENTRIUM_HOME; });
+
+  it("getWorkspacesDir defaults to ~/.agentrium/workspaces", () => {
+    delete process.env.AGENTRIUM_HOME;
+    expect(getWorkspacesDir()).toBe(path.join(os.homedir(), ".agentrium", "workspaces"));
+  });
+
+  it("getRunsDir builds <home>/workspaces/<name>/runs and honors AGENTRIUM_HOME", () => {
+    process.env.AGENTRIUM_HOME = path.join("/tmp", "ah");
+    expect(getRunsDir("ws1")).toBe(path.join("/tmp", "ah", "workspaces", "ws1", "runs"));
   });
 });

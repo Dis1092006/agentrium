@@ -1,10 +1,14 @@
 import fs from "fs";
 import path from "path";
-import os from "os";
+import { defaultAgentriumHome, workspacesDir, runsDir } from "@agentrium/contract";
 import type { RepositoryRef } from "../context/types.js";
 
 export function getWorkspacesDir(): string {
-  return path.join(os.homedir(), ".agentrium", "workspaces");
+  return workspacesDir(defaultAgentriumHome());
+}
+
+export function getRunsDir(name: string): string {
+  return runsDir(defaultAgentriumHome(), name);
 }
 
 export function findGitRepos(directory: string): string[] {

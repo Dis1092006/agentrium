@@ -1,10 +1,9 @@
 // src/cli/commands/resume.ts
 import { Command } from "commander";
-import path from "path";
 import chalk from "chalk";
 import fs from "fs";
 import readline from "readline";
-import { getWorkspacesDir, listWorkspaces, loadWorkspaceConfig } from "../../workspace/manager.js";
+import { getRunsDir, listWorkspaces, loadWorkspaceConfig } from "../../workspace/manager.js";
 import { parseAgentriumMd } from "../../context/configParser.js";
 import { analyzeRepo } from "../../context/repoAnalyzer.js";
 import { buildContextPrompt } from "../../context/contextBuilder.js";
@@ -16,7 +15,7 @@ import type { PipelineConfig, Stage } from "../../pipeline/types.js";
 
 function findStoreForRun(runId: string): { store: ArtifactStore; workspaceName: string } | null {
   for (const ws of listWorkspaces()) {
-    const store = new ArtifactStore(path.join(getWorkspacesDir(), ws, "runs"));
+    const store = new ArtifactStore(getRunsDir(ws));
     try {
       store.readMeta(runId);
       return { store, workspaceName: ws };
@@ -39,7 +38,7 @@ export function registerResumeCommand(program: Command): void {
 
       if (options.workspace) {
         workspaceName = options.workspace;
-        store = new ArtifactStore(path.join(getWorkspacesDir(), workspaceName, "runs"));
+        store = new ArtifactStore(getRunsDir(workspaceName));
       } else {
         const found = findStoreForRun(runId);
         if (!found) {

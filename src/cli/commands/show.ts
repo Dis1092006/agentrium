@@ -3,7 +3,7 @@ import { Command } from "commander";
 import path from "path";
 import chalk from "chalk";
 import fs from "fs";
-import { getWorkspacesDir, listWorkspaces } from "../../workspace/manager.js";
+import { getRunsDir, listWorkspaces } from "../../workspace/manager.js";
 import { ArtifactStore, type RunMeta } from "../../artifacts/store.js";
 
 export function printRunDetails(meta: RunMeta): void {
@@ -27,7 +27,7 @@ export function printRunDetails(meta: RunMeta): void {
 
 function findWorkspaceForRun(runId: string): string | null {
   for (const ws of listWorkspaces()) {
-    const runsDir = path.join(getWorkspacesDir(), ws, "runs");
+    const runsDir = getRunsDir(ws);
     const metaPath = path.join(runsDir, runId, "meta.json");
     if (fs.existsSync(metaPath)) return ws;
   }
@@ -47,7 +47,7 @@ export function registerShowCommand(program: Command): void {
         process.exit(1);
       }
 
-      const store = new ArtifactStore(path.join(getWorkspacesDir(), workspaceName, "runs"));
+      const store = new ArtifactStore(getRunsDir(workspaceName));
 
       if (options.stage) {
         const artifact = store.readArtifact(runId, options.stage);

@@ -1,8 +1,7 @@
 // src/cli/commands/runs.ts
 import { Command } from "commander";
-import path from "path";
 import chalk from "chalk";
-import { getWorkspacesDir } from "../../workspace/manager.js";
+import { getRunsDir } from "../../workspace/manager.js";
 import { ArtifactStore } from "../../artifacts/store.js";
 import { detectWorkspace } from "../utils.js";
 
@@ -18,7 +17,7 @@ export function registerRunsCommand(program: Command): void {
         process.exit(1);
       }
 
-      const store = new ArtifactStore(path.join(getWorkspacesDir(), workspaceName, "runs"));
+      const store = new ArtifactStore(getRunsDir(workspaceName));
       const runs = store.listRuns();
 
       if (runs.length === 0) {
