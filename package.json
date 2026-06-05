@@ -39,7 +39,7 @@
     "url": "https://github.com/Dis1092006/agentrium.git"
   },
   "dependencies": {
-    "@agentrium/contract": "^0.1.0",
+    "@agentrium/contract": "^0.2.0",
     "@anthropic-ai/claude-agent-sdk": "^0.2.87",
     "chalk": "^5.6.2",
     "commander": "^14.0.3",
