@@ -3,7 +3,7 @@ import { Command } from "commander";
 import path from "path";
 import chalk from "chalk";
 import ora from "ora";
-import { loadWorkspaceConfig, getWorkspacesDir } from "../../workspace/manager.js";
+import { loadWorkspaceConfig, getRunsDir } from "../../workspace/manager.js";
 import { parseAgentriumMd } from "../../context/configParser.js";
 import { analyzeRepo } from "../../context/repoAnalyzer.js";
 import { buildContextPrompt } from "../../context/contextBuilder.js";
@@ -92,7 +92,7 @@ export function registerRunCommand(program: Command): void {
 
       // 3. Create run and save intake
       const includeOptional = (options.include ?? []) as Stage[];
-      const store = new ArtifactStore(path.join(getWorkspacesDir(), workspaceName, "runs"));
+      const store = new ArtifactStore(getRunsDir(workspaceName));
 
       // 4. Build pipeline config
       const repoPaths = repos.map((r) => r.path);
