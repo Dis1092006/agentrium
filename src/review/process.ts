@@ -32,6 +32,8 @@ export class ReviewProcess {
   private readonly maxIterations: number;
   private readonly agentTimeoutMs: number | undefined;
   private readonly gitContext: GitContext | undefined;
+  private readonly signal: AbortSignal | undefined;
+  private readonly onMessage: ((message: unknown) => void) | undefined;
 
   constructor(
     store: ArtifactStore,
@@ -40,6 +42,8 @@ export class ReviewProcess {
     maxIterations: number,
     agentTimeoutMs?: number,
     gitContext?: GitContext,
+    signal?: AbortSignal,
+    onMessage?: (message: unknown) => void,
   ) {
     this.store = store;
     this.runId = runId;
@@ -47,6 +51,12 @@ export class ReviewProcess {
     this.maxIterations = maxIterations;
     this.agentTimeoutMs = agentTimeoutMs;
     this.gitContext = gitContext;
+    this.signal = signal;
+    this.onMessage = onMessage;
+  }
+
+  private runOpts() {
+    return { timeoutMs: this.agentTimeoutMs, signal: this.signal, onMessage: this.onMessage };
   }
 
   buildReviewContext(): string {
@@ -144,12 +154,16 @@ export class ReviewProcess {
 
       try {
         [logicResult, securityResult] = await Promise.all([
-          createAgentByName("code-reviewer-logic").run(context, reviewTaskDesc, this.agentTimeoutMs),
-          createAgentByName("code-reviewer-security").run(context, reviewTaskDesc, this.agentTimeoutMs),
+          createAgentByName("code-reviewer-logic").run(context, reviewTaskDesc, this.runOpts()),
+          createAgentByName("code-reviewer-security").run(context, reviewTaskDesc, this.runOpts()),
         ]);
         reviewSpinner.succeed(`Code reviews complete${iterLabel}`);
       } catch (error) {
-        reviewSpinner.fail(`Code reviews failed${iterLabel}`);
+        if (this.signal?.aborted) {
+          reviewSpinner.stop();
+        } else {
+          reviewSpinner.fail(`Code reviews failed${iterLabel}`);
+        }
         throw error;
       }
 
@@ -196,7 +210,7 @@ export class ReviewProcess {
           originalTask,
           copilotFindings,
         );
-        arbiterResult = await createAgentByName("review-arbiter").run(context, arbiterTaskDesc, this.agentTimeoutMs);
+        arbiterResult = await createAgentByName("review-arbiter").run(context, arbiterTaskDesc, this.runOpts());
         const verdict = parseVerdict(arbiterResult.artifact);
         arbiterSpinner.succeed(`Arbiter verdict${iterLabel}: ${verdict}`);
 
@@ -232,7 +246,11 @@ export class ReviewProcess {
 
         console.log(chalk.yellow(`Changes requested. Starting rework ${iteration}...`));
       } catch (error) {
-        arbiterSpinner.fail(`Arbiter failed${iterLabel}`);
+        if (this.signal?.aborted) {
+          arbiterSpinner.stop();
+        } else {
+          arbiterSpinner.fail(`Arbiter failed${iterLabel}`);
+        }
         throw error;
       }
 
@@ -244,11 +262,15 @@ export class ReviewProcess {
           originalTask,
           iteration,
         );
-        const fixResult = await createAgentByName("software-engineer").run(context, reworkDesc, this.agentTimeoutMs);
+        const fixResult = await createAgentByName("software-engineer").run(context, reworkDesc, this.runOpts());
         this.store.saveArtifact(this.runId, `rework_fix_v${iteration}`, fixResult.artifact);
         fixSpinner.succeed(`Fixes applied (rework ${iteration})`);
       } catch (error) {
-        fixSpinner.fail(`Fix failed (rework ${iteration})`);
+        if (this.signal?.aborted) {
+          fixSpinner.stop();
+        } else {
+          fixSpinner.fail(`Fix failed (rework ${iteration})`);
+        }
         throw error;
       }
 
@@ -277,11 +299,15 @@ export class ReviewProcess {
           `Re-verify after rework ${iteration}. ` +
           `The Software Engineer made fixes based on review feedback. ` +
           `Run tests and verify the fixes are correct.`;
-        const qaResult = await createAgentByName("qa-engineer").run(context, qaDesc, this.agentTimeoutMs);
+        const qaResult = await createAgentByName("qa-engineer").run(context, qaDesc, this.runOpts());
         this.store.saveArtifact(this.runId, `rework_qa_v${iteration}`, qaResult.artifact);
         qaSpinner.succeed(`Re-verification complete (rework ${iteration})`);
       } catch (error) {
-        qaSpinner.fail(`QA re-verification failed (rework ${iteration})`);
+        if (this.signal?.aborted) {
+          qaSpinner.stop();
+        } else {
+          qaSpinner.fail(`QA re-verification failed (rework ${iteration})`);
+        }
         throw error;
       }
     }

@@ -1,0 +1,145 @@
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { ControlChannel } from "../../src/observability/controlChannel.js";
+import { SCHEMA_VERSION, type ControlCommandName } from "@agentrium/contract";
+
+let dir: string;
+let file: string;
+
+beforeEach(() => {
+  dir = fs.mkdtempSync(path.join(os.tmpdir(), "agentrium-ctl-"));
+  file = path.join(dir, "control.jsonl");
+  fs.writeFileSync(file, "");
+});
+afterEach(() => fs.rmSync(dir, { recursive: true, force: true }));
+
+function send(command: ControlCommandName, stage?: string): void {
+  const line = JSON.stringify({ schemaVersion: SCHEMA_VERSION, seq: Date.now(), ts: new Date().toISOString(), command, stage });
+  fs.appendFileSync(file, line + "\n");
+}
+
+describe("ControlChannel", () => {
+  it("awaitGateClear resolves immediately when neither paused nor stepping", async () => {
+    const ch = new ControlChannel(file);
+    ch.start();
+    await ch.awaitGateClear(); // should not hang
+    ch.stop();
+  });
+
+  it("resume clears a pause", async () => {
+    const ch = new ControlChannel(file);
+    ch.start();
+    send("pause");
+    await ch.processPending(); // test seam: force a read
+    expect(ch.paused).toBe(true);
+    const gate = ch.awaitGateClear();
+    send("resume");
+    await ch.processPending();
+    await gate;
+    expect(ch.paused).toBe(false);
+    ch.stop();
+  });
+
+  it("step releases exactly one boundary and re-arms", async () => {
+    const ch = new ControlChannel(file);
+    ch.start();
+    send("step_mode_on");
+    await ch.processPending();
+    expect(ch.stepMode).toBe(true);
+
+    const first = ch.awaitGateClear();
+    send("step");
+    await ch.processPending();
+    await first; // released once
+
+    // Re-armed: the next boundary stays gated until another step arrives.
+    let secondResolved = false;
+    const second = ch.awaitGateClear().then(() => { secondResolved = true; });
+    await ch.processPending();
+    await new Promise((r) => setImmediate(r)); // flush microtasks
+    expect(secondResolved).toBe(false);
+
+    send("step");
+    await ch.processPending();
+    await second;
+    expect(secondResolved).toBe(true);
+    ch.stop();
+  });
+
+  it("step_mode_off clears the gate", async () => {
+    const ch = new ControlChannel(file);
+    ch.start();
+    send("step_mode_on");
+    await ch.processPending();
+    const gate = ch.awaitGateClear();
+    send("step_mode_off");
+    await ch.processPending();
+    await gate;
+    ch.stop();
+  });
+
+  it("awaitDecision resolves with the checkpoint command", async () => {
+    const ch = new ControlChannel(file);
+    ch.start();
+    const decision = ch.awaitDecision("analysis");
+    send("approve", "analysis");
+    await ch.processPending();
+    expect(await decision).toBe("approve");
+    ch.stop();
+  });
+
+  it("cancel resolves a pending decision so the runner cannot hang", async () => {
+    const ch = new ControlChannel(file);
+    ch.start();
+    const decision = ch.awaitDecision("analysis");
+    send("cancel");
+    await ch.processPending();
+    expect(await decision).toBe("reject");
+    expect(ch.cancelled).toBe(true);
+    ch.stop();
+  });
+
+  it("cancel aborts the signal and unblocks gates", async () => {
+    const ch = new ControlChannel(file);
+    ch.start();
+    send("pause");
+    await ch.processPending();
+    const gate = ch.awaitGateClear();
+    send("cancel");
+    await ch.processPending();
+    await gate; // cancel unblocks the gate
+    expect(ch.cancelled).toBe(true);
+    expect(ch.signal.aborted).toBe(true);
+    ch.stop();
+  });
+
+  it("picks up a command via polling without an explicit processPending call", async () => {
+    const ch = new ControlChannel(file);
+    ch.start();
+    send("pause");
+    // wait for the poll interval (300ms) to apply it
+    await new Promise((r) => setTimeout(r, 500));
+    expect(ch.paused).toBe(true);
+    ch.stop();
+  });
+
+  it("drops a decision waiter when its abort signal fires (no cross-talk between checkpoints)", async () => {
+    const ch = new ControlChannel(file);
+    ch.start();
+
+    // First checkpoint loses a race -> its signal aborts.
+    const ac = new AbortController();
+    const stale = ch.awaitDecision("stage1", ac.signal);
+    void stale; // intentionally never awaited; it must NOT capture the next decision
+    ac.abort();
+
+    // Next checkpoint must receive the command for stage2.
+    const fresh = ch.awaitDecision("stage2");
+    send("approve", "stage2");
+    await ch.processPending();
+    expect(await fresh).toBe("approve");
+    ch.stop();
+  });
+});

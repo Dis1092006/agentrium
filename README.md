@@ -207,6 +207,17 @@ All run artifacts are saved to:
 
 See [`docs/artifacts.md`](docs/artifacts.md) for the inter-agent protocol invariants (how stages communicate, rework loop semantics, resume behavior).
 
+### Telemetry and control
+
+Every run also writes two additional files to its run directory:
+
+- **`events.jsonl`** — append-only telemetry stream. The runner emits lifecycle, stage, and activity events as newline-delimited JSON records. Event levels are nested subsets (`stage ⊂ activity ⊂ raw`), so consumers can filter to whatever granularity they need.
+- **`control.jsonl`** — append-only command file. External tools can append JSON command records to drive the run: checkpoint decisions (`approve`/`reject`/`skip`), flow control (`pause`/`resume`), step-by-step execution (`step_mode_on`/`step_mode_off`/`step`), and `cancel`. The runner tails this file via `fs.watch` with a 300 ms polling fallback (needed on Windows) and gates at each stage boundary.
+
+The wire format (types, schema version, file names, path helpers) is defined by the `@agentrium/contract` workspace package in `packages/contract/`. Telemetry and control are non-fatal: a missing or broken file degrades to a no-op and never aborts a run.
+
+A live web dashboard that consumes these files is provided by the separate [`agentrium-ui`](https://github.com/Dis1092006/agentrium-ui) repository — there is no server embedded in core agentrium.
+
 ## Development
 
 To build and run from source:

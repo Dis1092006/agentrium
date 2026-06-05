@@ -61,6 +61,10 @@ export class ArtifactStore {
     return runId;
   }
 
+  runDir(runId: string): string {
+    return path.join(this.baseDir, runId);
+  }
+
   saveArtifact(runId: string, stage: string, content: string): void {
     const fileName = STAGE_FILES[stage] ?? `${stage}.md`;
     const filePath = path.join(this.baseDir, runId, fileName);
