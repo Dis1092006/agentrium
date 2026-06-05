@@ -1,9 +1,11 @@
 {
   "name": "agentrium",
-  "version": "0.7.2",
+  "version": "0.8.0",
   "description": "Multi-agent orchestrator for software development",
   "type": "module",
-  "workspaces": ["packages/*"],
+  "workspaces": [
+    "packages/*"
+  ],
   "bin": {
     "agentrium": "./dist/cli/index.js"
   },
