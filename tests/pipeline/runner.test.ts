@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, beforeAll, afterAll, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { PipelineRunner } from "../../src/pipeline/runner.js";
 import { ArtifactStore } from "../../src/artifacts/store.js";
 import { eventsPathFor, controlPathFor, SCHEMA_VERSION } from "@agentrium/contract";
@@ -10,35 +10,6 @@ const queryImpl = vi.fn();
 vi.mock("@anthropic-ai/claude-agent-sdk", () => ({
   query: (args: unknown) => queryImpl(args),
 }));
-
-vi.mock("ora", () => {
-  const spinner: Record<string, unknown> = {};
-  for (const m of ["start", "stop", "succeed", "fail", "warn", "info"]) {
-    spinner[m] = () => spinner;
-  }
-  spinner.text = "";
-  return { default: () => spinner };
-});
-
-// Swallow EPIPE errors emitted on stdout/stderr during worker teardown.
-// When Vitest closes the IPC pipe while buffered writes are in flight, Node raises
-// EPIPE as an uncaught exception — we re-throw anything that isn't EPIPE.
-process.stdout.on("error", (err: NodeJS.ErrnoException) => { if (err.code !== "EPIPE") throw err; });
-process.stderr.on("error", (err: NodeJS.ErrnoException) => { if (err.code !== "EPIPE") throw err; });
-process.on("uncaughtException", (err: NodeJS.ErrnoException) => {
-  if ((err as NodeJS.ErrnoException).code !== "EPIPE") throw err;
-});
-
-let consoleLogSpy: ReturnType<typeof vi.spyOn>;
-let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
-beforeAll(() => {
-  consoleLogSpy = vi.spyOn(console, "log").mockImplementation(() => {});
-  consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-});
-afterAll(() => {
-  consoleLogSpy.mockRestore();
-  consoleErrorSpy.mockRestore();
-});
 
 describe("PipelineRunner", () => {
   let tmpDir: string;
