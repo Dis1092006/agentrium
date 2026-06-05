@@ -1,6 +1,6 @@
 {
   "name": "@agentrium/contract",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "On-disk event/control contract for agentrium run observability",
   "type": "module",
   "main": "./dist/index.js",

@@ -1,3 +1,4 @@
+import os from "node:os";
 import path from "node:path";
 
 // The on-disk contract between an agentrium run (producer of events, consumer
@@ -51,4 +52,22 @@ export function eventsPathFor(runDir: string): string {
 
 export function controlPathFor(runDir: string): string {
   return path.join(runDir, CONTROL_FILE);
+}
+
+export const RUN_ID_PREFIX = "run_";
+
+export function defaultAgentriumHome(): string {
+  return process.env.AGENTRIUM_HOME ?? path.join(os.homedir(), ".agentrium");
+}
+
+export function workspacesDir(home: string): string {
+  return path.join(home, "workspaces");
+}
+
+export function runsDir(home: string, workspace: string): string {
+  return path.join(home, "workspaces", workspace, "runs");
+}
+
+export function runDir(home: string, workspace: string, runId: string): string {
+  return path.join(home, "workspaces", workspace, "runs", runId);
 }
