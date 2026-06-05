@@ -193,4 +193,45 @@ describe("PipelineRunner telemetry + control", () => {
     expect(types).toContain("run_aborted");
     expect(types).not.toContain("run_failed");
   });
+
+  it("cancel during the review stage ends the run aborted, not failed or completed", async () => {
+    const runId = store.createRun("test review cancel task");
+    const runDir = store.runDir(runId);
+    const controlFile = controlPathFor(runDir);
+
+    // The review stage runs logic + security reviewers in parallel via queryImpl.
+    // When invoked, each reviewer appends cancel (idempotent) then waits for abort.
+    queryImpl.mockImplementation((args: { options: { abortController: AbortController } }) => {
+      const signal = args.options.abortController.signal;
+      return (async function* () {
+        yield { type: "assistant", message: { content: [{ type: "text", text: "reviewing" }] } };
+        // Append cancel; multiple appends from parallel reviewers are harmless.
+        fs.appendFileSync(
+          controlFile,
+          JSON.stringify({ schemaVersion: SCHEMA_VERSION, seq: 1, ts: new Date().toISOString(), command: "cancel" }) + "\n",
+        );
+        await new Promise<void>((_, reject) => {
+          signal.addEventListener("abort", () => reject(new Error("aborted")), { once: true });
+        });
+        yield { result: "never reached" };
+      })();
+    });
+
+    // Skip all non-review, non-optional stages so the pipeline goes straight to review.
+    // design and documentation are optional and excluded automatically (not in includeOptional).
+    const config = {
+      checkpoints: "none" as const,
+      skipStages: ["analysis", "architecture", "implementation", "testing"] as import("../../src/pipeline/types.js").Stage[],
+    };
+
+    const runner = new PipelineRunner(store, runId, "workspace context", 3, [], null, false, 5);
+    await runner.runPipeline("test review cancel task", config);
+
+    expect(store.readMeta(runId).status).toBe("aborted");
+    const types = fs.readFileSync(eventsPathFor(store.runDir(runId)), "utf-8")
+      .trim().split("\n").map((l) => JSON.parse(l).type);
+    expect(types).toContain("run_aborted");
+    expect(types).not.toContain("run_failed");
+    expect(types).not.toContain("run_completed");
+  });
 });

@@ -207,6 +207,13 @@ export class PipelineRunner {
       }
     }
 
+    if (this.control.cancelled) {
+      this.eventLog.emit("stage", "run_aborted");
+      this.store.updateStatus(this.runId, "aborted");
+      this.control.stop();
+      return;
+    }
+
     this.store.updateStatus(this.runId, "completed");
     this.eventLog.emit("stage", "run_completed");
     this.control.stop();
@@ -374,6 +381,8 @@ export class PipelineRunner {
         this.maxReviewIterations,
         this.agentTimeoutMs,
         gitContext,
+        this.control.signal,
+        (m) => this.emitSdkMessage("review", m),
       );
 
       const verdict = await reviewProcess.run(task);
@@ -392,7 +401,11 @@ export class PipelineRunner {
         durationMs,
       };
     } catch (error) {
+      if (this.control.cancelled) {
+        return null; // cancel is handled by the run loop, not a failure
+      }
       console.log(chalk.red("Review stage failed"));
+      this.eventLog.emit("stage", "run_failed", { stage: planned.stage, data: { error: String(error) } });
       this.store.updateStatus(this.runId, "failed");
       this.control.stop();
       throw error;
