@@ -17,13 +17,6 @@ import {
 
 const ARTIFACT_STAGES: string[] = ["intake", ...STAGE_ORDER];
 
-/** Stop a spinner without writing anything (avoids EPIPE on cancel). */
-function silentStop(spinner: ReturnType<typeof ora>) {
-  // isSilent has a JS setter but is typed readonly; cast to suppress tsc.
-  (spinner as unknown as { isSilent: boolean }).isSilent = true;
-  spinner.stop();
-}
-
 export interface GitContext {
   repoPath: string;
   branchName: string;
@@ -167,7 +160,7 @@ export class ReviewProcess {
         reviewSpinner.succeed(`Code reviews complete${iterLabel}`);
       } catch (error) {
         if (this.signal?.aborted) {
-          silentStop(reviewSpinner);
+          reviewSpinner.stop();
         } else {
           reviewSpinner.fail(`Code reviews failed${iterLabel}`);
         }
@@ -254,7 +247,7 @@ export class ReviewProcess {
         console.log(chalk.yellow(`Changes requested. Starting rework ${iteration}...`));
       } catch (error) {
         if (this.signal?.aborted) {
-          silentStop(arbiterSpinner);
+          arbiterSpinner.stop();
         } else {
           arbiterSpinner.fail(`Arbiter failed${iterLabel}`);
         }
@@ -274,7 +267,7 @@ export class ReviewProcess {
         fixSpinner.succeed(`Fixes applied (rework ${iteration})`);
       } catch (error) {
         if (this.signal?.aborted) {
-          silentStop(fixSpinner);
+          fixSpinner.stop();
         } else {
           fixSpinner.fail(`Fix failed (rework ${iteration})`);
         }
@@ -311,7 +304,7 @@ export class ReviewProcess {
         qaSpinner.succeed(`Re-verification complete (rework ${iteration})`);
       } catch (error) {
         if (this.signal?.aborted) {
-          silentStop(qaSpinner);
+          qaSpinner.stop();
         } else {
           qaSpinner.fail(`QA re-verification failed (rework ${iteration})`);
         }
