@@ -1,6 +1,6 @@
 {
   "name": "agentrium",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "description": "Multi-agent orchestrator for software development",
   "type": "module",
   "workspaces": [
