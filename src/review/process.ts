@@ -6,6 +6,7 @@ import { ArtifactStore } from "../artifacts/store.js";
 import { parseVerdict, type ReviewVerdict } from "./types.js";
 import { STAGE_ORDER } from "../pipeline/types.js";
 import { commitChanges, pushBranch, getAgentChangedFiles, type DirtySnapshot } from "../git/operations.js";
+import { generateCommitMessage } from "../git/messages.js";
 import {
   requestCopilotReview,
   waitForCopilotReview,
@@ -280,14 +281,18 @@ export class ReviewProcess {
       if (this.gitContext) {
         try {
           const changed = await getAgentChangedFiles(this.gitContext.repoPath, this.gitContext.baselineDirty);
-          const committed = await commitChanges(
-            this.gitContext.repoPath,
-            `fix: rework iteration ${iteration} for task: ${originalTask.slice(0, 50)}`,
-            changed,
-          );
-          if (committed) {
-            await pushBranch(this.gitContext.repoPath, this.gitContext.branchName);
-            console.log(chalk.gray(`Pushed rework ${iteration} commits`));
+          if (changed.length > 0) {
+            const message = await generateCommitMessage(this.gitContext.repoPath, changed, {
+              type: "fix",
+              stage: `rework iteration ${iteration}`,
+              signal: this.signal,
+              timeoutMs: this.agentTimeoutMs,
+            });
+            const committed = await commitChanges(this.gitContext.repoPath, message, changed);
+            if (committed) {
+              await pushBranch(this.gitContext.repoPath, this.gitContext.branchName);
+              console.log(chalk.gray(`Pushed rework ${iteration} commits`));
+            }
           }
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);

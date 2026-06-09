@@ -9,6 +9,7 @@ import { createAgentByName } from "../agents/registry.js";
 import { ArtifactStore } from "../artifacts/store.js";
 import { ReviewProcess } from "../review/process.js";
 import { slugifyTask, createBranch, commitChanges, pushBranch, createPR, getAgentChangedFiles, snapshotDirty } from "../git/operations.js";
+import { generatePrTitle, generateCommitMessage } from "../git/messages.js";
 import { extractPrNumber, requestCopilotReview } from "../github/copilotReview.js";
 import { eventsPathFor } from "@agentrium/contract";
 import { EventLogger } from "../observability/eventLog.js";
@@ -211,10 +212,7 @@ export class PipelineRunner {
 
       // Commit after checkpoint in all repos that have changes
       if (branchName && activePaths.length > 0 && (planned.stage === "implementation" || planned.stage === "testing")) {
-        const commitMsg = planned.stage === "implementation"
-          ? `feat: ${task}`
-          : `test: add tests for ${task}`;
-        await this.commitToChangedRepos(activePaths, commitMsg);
+        await this.commitToChangedRepos(activePaths, planned.stage);
       }
 
       // Create PRs after testing stage for all repos with commits
@@ -242,12 +240,13 @@ export class PipelineRunner {
     // If PR was not yet created (e.g. testing stage was skipped), create it now
     if (branchName && activePaths.length > 0 && !firstPrNumber) {
       console.log(chalk.blue("\nCreating pull requests..."));
+      const prTitle = await this.resolvePrTitle(task);
       const prUrls: string[] = [];
       for (const repoPath of activePaths) {
         try {
           await pushBranch(repoPath, branchName);
           const prBody = this.buildPrBody(task);
-          const prUrl = createPR(repoPath, branchName, task, prBody);
+          const prUrl = createPR(repoPath, branchName, prTitle, prBody);
           prUrls.push(prUrl);
           console.log(chalk.green(`Pull request created: ${prUrl}`));
         } catch {
@@ -260,12 +259,28 @@ export class PipelineRunner {
     }
   }
 
-  private async commitToChangedRepos(repoPaths: string[], commitMsg: string): Promise<void> {
+  /** Generate the run's PR title once (LLM), cache it in meta.json, reuse on resume and across repos. */
+  private async resolvePrTitle(task: string): Promise<string> {
+    const cached = this.store.readMeta(this.runId).prTitle;
+    if (cached) return cached;
+    const title = await generatePrTitle(task, { signal: this.control.signal, timeoutMs: this.agentTimeoutMs });
+    this.store.setPrTitle(this.runId, title);
+    return title;
+  }
+
+  private async commitToChangedRepos(repoPaths: string[], stage: Stage): Promise<void> {
+    const type = stage === "testing" ? "test" : "feat";
     for (const repoPath of repoPaths) {
       try {
         const changed = await getAgentChangedFiles(repoPath, this.baselineDirty[repoPath] ?? {});
         if (changed.length === 0) continue;
-        const committed = await commitChanges(repoPath, commitMsg, changed);
+        const message = await generateCommitMessage(repoPath, changed, {
+          type,
+          stage,
+          signal: this.control.signal,
+          timeoutMs: this.agentTimeoutMs,
+        });
+        const committed = await commitChanges(repoPath, message, changed);
         if (committed) {
           console.log(chalk.gray(`Committed ${changed.length} file(s) in "${repoPath}".`));
         }
@@ -277,12 +292,13 @@ export class PipelineRunner {
   }
 
   private async createPrsForReview(task: string, repoPaths: string[], branchName: string): Promise<string[]> {
+    const prTitle = await this.resolvePrTitle(task);
     const prUrls: string[] = [];
     for (const repoPath of repoPaths) {
       try {
         await pushBranch(repoPath, branchName);
         const prBody = this.buildPrBody(task);
-        const prUrl = createPR(repoPath, branchName, task, prBody);
+        const prUrl = createPR(repoPath, branchName, prTitle, prBody);
         prUrls.push(prUrl);
         console.log(chalk.green(`Pull request created: ${prUrl}`));
 

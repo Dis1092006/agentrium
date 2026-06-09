@@ -10,6 +10,7 @@ import { buildContextPrompt } from "../../context/contextBuilder.js";
 import { ArtifactStore } from "../../artifacts/store.js";
 import { PipelineRunner } from "../../pipeline/runner.js";
 import { pushBranch, createPR, slugifyTask, branchExists, createBranch, getAgentChangedFiles, commitChanges } from "../../git/operations.js";
+import { generatePrTitle, generateCommitMessage } from "../../git/messages.js";
 import type { FullContext } from "../../context/types.js";
 import type { PipelineConfig, Stage } from "../../pipeline/types.js";
 
@@ -168,6 +169,9 @@ async function retryGitOps(store: ArtifactStore, runId: string, task: string, wo
   ].join("\n");
 
   const baselineDirty = store.readMeta(runId).baselineDirty ?? {};
+  const cachedTitle = store.readMeta(runId).prTitle;
+  const prTitle = cachedTitle ?? await generatePrTitle(task);
+  if (!cachedTitle) store.setPrTitle(runId, prTitle);
   const prUrls: string[] = [];
   for (const repo of repos) {
     const repoPath = repo.path;
@@ -188,7 +192,8 @@ async function retryGitOps(store: ArtifactStore, runId: string, task: string, wo
         }
         const confirmed = await askYesNo(chalk.cyan("\nCommit these changes and include in PR? [y/n] > "));
         if (confirmed) {
-          const committed = await commitChanges(repoPath, `feat: ${task}`, changed);
+          const commitMsg = await generateCommitMessage(repoPath, changed, { type: "feat", stage: "resume" });
+          const committed = await commitChanges(repoPath, commitMsg, changed);
           if (committed) {
             console.log(chalk.gray(`Committed ${changed.length} file(s) in "${repoPath}".`));
           }
@@ -196,7 +201,7 @@ async function retryGitOps(store: ArtifactStore, runId: string, task: string, wo
       }
 
       await pushBranch(repoPath, branchName);
-      const prUrl = createPR(repoPath, branchName, task, prBody);
+      const prUrl = createPR(repoPath, branchName, prTitle, prBody);
       prUrls.push(prUrl);
       console.log(chalk.green(`Pull request created: ${prUrl}`));
     } catch (error) {
