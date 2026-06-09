@@ -216,7 +216,7 @@ Every run also writes two additional files to its run directory:
 
 The wire format (types, schema version, file names, path helpers) is defined by the `@agentrium/contract` workspace package in `packages/contract/`. Telemetry and control are non-fatal: a missing or broken file degrades to a no-op and never aborts a run.
 
-A live web dashboard that consumes these files is provided by the separate [`agentrium-ui`](https://github.com/Dis1092006/agentrium-ui) repository — there is no server embedded in core agentrium.
+A live web dashboard that consumes these files is provided by the separate [`agentrium-ui`](https://github.com/Dis1092006/agentrium-ui) repository — there is no server embedded in core agentrium. For how to set the two up and watch/drive a run from the browser, see the [**Using agentrium and agentrium-ui together**](https://github.com/Dis1092006/agentrium-ui/blob/main/docs/using-with-agentrium.md) guide.
 
 ## Development
 

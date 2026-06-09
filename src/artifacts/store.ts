@@ -24,6 +24,15 @@ export interface RunMeta {
   seededStages: string[];
   startFrom?: string;
   prUrl?: string;
+  /** LLM-generated concise PR title; generated once and reused across repos and on resume. */
+  prTitle?: string;
+  /**
+   * Snapshot of uncommitted files taken once at the start of the run, before
+   * any agent edits: repo path → (file path → content hash). Used to scope
+   * commits to files agentrium changed and to survive a resume in a fresh
+   * process.
+   */
+  baselineDirty?: Record<string, Record<string, string>>;
 }
 
 export class ArtifactStore {
@@ -111,6 +120,18 @@ export class ArtifactStore {
   updatePrUrl(runId: string, prUrl: string): void {
     const meta = this.readMeta(runId);
     meta.prUrl = prUrl;
+    this.writeMeta(runId, meta);
+  }
+
+  setBaselineDirty(runId: string, baseline: Record<string, Record<string, string>>): void {
+    const meta = this.readMeta(runId);
+    meta.baselineDirty = baseline;
+    this.writeMeta(runId, meta);
+  }
+
+  setPrTitle(runId: string, prTitle: string): void {
+    const meta = this.readMeta(runId);
+    meta.prTitle = prTitle;
     this.writeMeta(runId, meta);
   }
 

@@ -85,6 +85,14 @@ describe("ArtifactStore", () => {
     expect(meta.prUrl).toBe("https://github.com/org/repo/pull/42");
   });
 
+  it("setBaselineDirty persists the per-repo baseline so resume can reuse it", () => {
+    const runId = store.createRun("task");
+    expect(store.readMeta(runId).baselineDirty).toBeUndefined();
+    const baseline = { "/repo/a": { "wip.ts": "abc123", "notes.md": "def456" }, "/repo/b": {} };
+    store.setBaselineDirty(runId, baseline);
+    expect(store.readMeta(runId).baselineDirty).toEqual(baseline);
+  });
+
   it("readMeta handles old meta.json without new fields gracefully", () => {
     const runId = `run_oldformat`;
     const runDir = path.join(tmpDir, runId);

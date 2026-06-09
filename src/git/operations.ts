@@ -1,5 +1,8 @@
 // src/git/operations.ts
 import { execFileSync } from "child_process";
+import fs from "fs";
+import path from "path";
+import crypto from "crypto";
 import { simpleGit } from "simple-git";
 
 export function slugifyTask(task: string): string {
@@ -40,9 +43,62 @@ export async function getUncommittedFiles(repoPath: string): Promise<string[]> {
   );
 }
 
-export async function commitChanges(repoPath: string, message: string): Promise<boolean> {
+/** Per-repo snapshot of uncommitted files at run start: path → content hash. */
+export type DirtySnapshot = Record<string, string>;
+
+/** Content hash of a working-tree file; "" for a missing (deleted) file. */
+function hashWorkingFile(repoPath: string, file: string): string {
+  try {
+    return crypto.createHash("sha1").update(fs.readFileSync(path.join(repoPath, file))).digest("hex");
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * Snapshot the files already uncommitted in `repoPath`, hashing each one's
+ * current content. Taken once before any agent runs so later commits can tell
+ * which dirty files agentrium actually changed.
+ */
+export async function snapshotDirty(repoPath: string): Promise<DirtySnapshot> {
+  const files = await getUncommittedFiles(repoPath);
+  const snapshot: DirtySnapshot = {};
+  for (const file of files) {
+    snapshot[file] = hashWorkingFile(repoPath, file);
+  }
+  return snapshot;
+}
+
+/**
+ * Files agentrium changed during the run, relative to the `baseline` snapshot.
+ * A file is included when it was clean at run start (now dirty) OR was already
+ * dirty but its content changed since the snapshot. A pre-existing dirty file
+ * agentrium never touched is excluded, so we never commit unrelated user
+ * work-in-progress — but any file an agent edits is committed even if the user
+ * had it dirty beforehand.
+ */
+export async function getAgentChangedFiles(repoPath: string, baseline: DirtySnapshot): Promise<string[]> {
+  const current = await getUncommittedFiles(repoPath);
+  return current.filter((file) => {
+    const baseHash = baseline[file];
+    if (baseHash === undefined) return true; // clean at run start, dirty now
+    return hashWorkingFile(repoPath, file) !== baseHash; // dirty before, changed since
+  });
+}
+
+/**
+ * Commit changes in `repoPath`. When `files` is provided, only those paths are
+ * staged (so pre-existing user changes are left untouched); an empty list is a
+ * no-op. When `files` is omitted, the entire working tree is staged.
+ */
+export async function commitChanges(repoPath: string, message: string, files?: string[]): Promise<boolean> {
   const git = simpleGit(repoPath);
-  await git.add(".");
+  if (files !== undefined) {
+    if (files.length === 0) return false;
+    await git.add(files);
+  } else {
+    await git.add(".");
+  }
   const status = await git.status();
   if (status.staged.length === 0) return false;
   await git.commit(message);

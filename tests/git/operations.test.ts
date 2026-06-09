@@ -4,7 +4,7 @@ import fs from "fs";
 import path from "path";
 import os from "os";
 import { execSync } from "child_process";
-import { slugifyTask, createBranch, commitChanges, branchExists, getUncommittedFiles } from "../../src/git/operations.js";
+import { slugifyTask, createBranch, commitChanges, branchExists, getUncommittedFiles, getAgentChangedFiles, snapshotDirty } from "../../src/git/operations.js";
 
 describe("git operations", () => {
   let repoDir: string;
@@ -59,6 +59,74 @@ describe("git operations", () => {
     await createBranch(repoDir, "agentrium/test-branch");
     const committed = await commitChanges(repoDir, "feat: nothing");
     expect(committed).toBe(false);
+  });
+
+  it("commitChanges with an explicit file list stages only those files", async () => {
+    await createBranch(repoDir, "agentrium/test-branch");
+    // A pre-existing dirty file the user already had (must NOT be committed)
+    fs.writeFileSync(path.join(repoDir, "user-wip.ts"), "user changes");
+    // A file agentrium produced (must be committed)
+    fs.writeFileSync(path.join(repoDir, "agent-file.ts"), "export const x = 1;");
+
+    const committed = await commitChanges(repoDir, "feat: only agent file", ["agent-file.ts"]);
+    expect(committed).toBe(true);
+
+    // The agent file is in the commit
+    const show = execSync("git show --name-only --pretty=format: HEAD", { cwd: repoDir, encoding: "utf-8" });
+    expect(show).toContain("agent-file.ts");
+    expect(show).not.toContain("user-wip.ts");
+
+    // The user's WIP file is still uncommitted (untouched)
+    const stillDirty = await getUncommittedFiles(repoDir);
+    expect(stillDirty).toContain("user-wip.ts");
+  });
+
+  it("commitChanges returns false when given an empty file list", async () => {
+    await createBranch(repoDir, "agentrium/test-branch");
+    fs.writeFileSync(path.join(repoDir, "user-wip.ts"), "user changes");
+    const committed = await commitChanges(repoDir, "feat: nothing of ours", []);
+    expect(committed).toBe(false);
+    // Nothing was committed; the user's file is still dirty
+    expect(await getUncommittedFiles(repoDir)).toContain("user-wip.ts");
+  });
+
+  it("getAgentChangedFiles returns files dirtied after the baseline snapshot", async () => {
+    await createBranch(repoDir, "agentrium/test-branch");
+    // Pre-existing dirty file at run start, left untouched by agentrium
+    fs.writeFileSync(path.join(repoDir, "user-wip.ts"), "user changes");
+    const baseline = await snapshotDirty(repoDir);
+
+    // Now agentrium changes a different file
+    fs.writeFileSync(path.join(repoDir, "agent-file.ts"), "export const x = 1;");
+
+    const mine = await getAgentChangedFiles(repoDir, baseline);
+    expect(mine).toContain("agent-file.ts");
+    expect(mine).not.toContain("user-wip.ts");
+  });
+
+  it("getAgentChangedFiles includes a pre-existing dirty file when agentrium edits it further", async () => {
+    await createBranch(repoDir, "agentrium/test-branch");
+    fs.writeFileSync(path.join(repoDir, "user-wip.ts"), "user v1");
+    const baseline = await snapshotDirty(repoDir);
+
+    // agentrium further modifies the file the user already had dirty
+    fs.writeFileSync(path.join(repoDir, "user-wip.ts"), "user v1 + agent v2");
+
+    const mine = await getAgentChangedFiles(repoDir, baseline);
+    expect(mine).toContain("user-wip.ts");
+  });
+
+  it("getAgentChangedFiles excludes a pre-existing dirty file agentrium never touched", async () => {
+    await createBranch(repoDir, "agentrium/test-branch");
+    fs.writeFileSync(path.join(repoDir, "user-wip.ts"), "user only");
+    const baseline = await snapshotDirty(repoDir);
+
+    // agentrium touches a different file; user-wip.ts is left exactly as-is
+    fs.writeFileSync(path.join(repoDir, "agent-file.ts"), "agent");
+
+    const mine = await getAgentChangedFiles(repoDir, baseline);
+    expect(mine).not.toContain("user-wip.ts");
+    expect(mine).toContain("agent-file.ts");
   });
 
   it("branchExists returns true for an existing local branch", async () => {

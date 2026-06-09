@@ -5,7 +5,8 @@ import { createAgentByName } from "../agents/registry.js";
 import { ArtifactStore } from "../artifacts/store.js";
 import { parseVerdict, type ReviewVerdict } from "./types.js";
 import { STAGE_ORDER } from "../pipeline/types.js";
-import { commitChanges, pushBranch } from "../git/operations.js";
+import { commitChanges, pushBranch, getAgentChangedFiles, type DirtySnapshot } from "../git/operations.js";
+import { generateCommitMessage } from "../git/messages.js";
 import {
   requestCopilotReview,
   waitForCopilotReview,
@@ -23,6 +24,8 @@ export interface GitContext {
   prNumber: number;
   copilotEnabled: boolean;
   copilotTimeoutMs: number;
+  /** Files already uncommitted at run start (path → hash); untouched ones are excluded from rework commits. */
+  baselineDirty: DirtySnapshot;
 }
 
 export class ReviewProcess {
@@ -277,13 +280,19 @@ export class ReviewProcess {
       // 7b. Commit and push rework fixes so Copilot can see them in the next iteration
       if (this.gitContext) {
         try {
-          const committed = await commitChanges(
-            this.gitContext.repoPath,
-            `fix: rework iteration ${iteration} for task: ${originalTask.slice(0, 50)}`,
-          );
-          if (committed) {
-            await pushBranch(this.gitContext.repoPath, this.gitContext.branchName);
-            console.log(chalk.gray(`Pushed rework ${iteration} commits`));
+          const changed = await getAgentChangedFiles(this.gitContext.repoPath, this.gitContext.baselineDirty);
+          if (changed.length > 0) {
+            const message = await generateCommitMessage(this.gitContext.repoPath, changed, {
+              type: "fix",
+              stage: `rework iteration ${iteration}`,
+              signal: this.signal,
+              timeoutMs: this.agentTimeoutMs,
+            });
+            const committed = await commitChanges(this.gitContext.repoPath, message, changed);
+            if (committed) {
+              await pushBranch(this.gitContext.repoPath, this.gitContext.branchName);
+              console.log(chalk.gray(`Pushed rework ${iteration} commits`));
+            }
           }
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
