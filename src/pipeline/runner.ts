@@ -8,7 +8,7 @@ import { StdinCheckpointPrompter, ControlChannelCheckpointPrompter, raceCheckpoi
 import { createAgentByName } from "../agents/registry.js";
 import { ArtifactStore } from "../artifacts/store.js";
 import { ReviewProcess } from "../review/process.js";
-import { slugifyTask, createBranch, commitChanges, pushBranch, createPR, getUncommittedFiles } from "../git/operations.js";
+import { slugifyTask, createBranch, commitChanges, pushBranch, createPR, getAgentChangedFiles, snapshotDirty } from "../git/operations.js";
 import { extractPrNumber, requestCopilotReview } from "../github/copilotReview.js";
 import { eventsPathFor } from "@agentrium/contract";
 import { EventLogger } from "../observability/eventLog.js";
@@ -27,6 +27,8 @@ export class PipelineRunner {
   private readonly copilotReviewTimeoutMs: number;
   private readonly eventLog: EventLogger;
   private readonly control: ControlChannel;
+  /** Uncommitted files per repo at run start (path → content hash), so commits exclude untouched user changes. */
+  private baselineDirty: Record<string, Record<string, string>> = {};
 
   constructor(
     store: ArtifactStore,
@@ -113,6 +115,24 @@ export class PipelineRunner {
           console.log(chalk.yellow(`Warning: could not create branch in "${repoPath}". Skipping git integration for this repo.`));
         }
       }
+    }
+
+    // Snapshot files already dirty before any agent runs, so commits only ever
+    // include files agentrium changed. Captured once and persisted to meta.json;
+    // on resume we reuse the original snapshot rather than re-capturing (by then
+    // earlier agent edits would already be in the working tree).
+    const persistedBaseline = this.store.readMeta(this.runId).baselineDirty;
+    if (persistedBaseline) {
+      this.baselineDirty = persistedBaseline;
+    } else if (activePaths.length > 0) {
+      for (const repoPath of activePaths) {
+        try {
+          this.baselineDirty[repoPath] = await snapshotDirty(repoPath);
+        } catch {
+          this.baselineDirty[repoPath] = {};
+        }
+      }
+      this.store.setBaselineDirty(this.runId, this.baselineDirty);
     }
 
     // prNumber is set for the first repo's PR (used for Copilot review)
@@ -243,11 +263,11 @@ export class PipelineRunner {
   private async commitToChangedRepos(repoPaths: string[], commitMsg: string): Promise<void> {
     for (const repoPath of repoPaths) {
       try {
-        const changed = await getUncommittedFiles(repoPath);
+        const changed = await getAgentChangedFiles(repoPath, this.baselineDirty[repoPath] ?? {});
         if (changed.length === 0) continue;
-        const committed = await commitChanges(repoPath, commitMsg);
+        const committed = await commitChanges(repoPath, commitMsg, changed);
         if (committed) {
-          console.log(chalk.gray(`Committed changes in "${repoPath}".`));
+          console.log(chalk.gray(`Committed ${changed.length} file(s) in "${repoPath}".`));
         }
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
@@ -371,6 +391,7 @@ export class PipelineRunner {
             prNumber,
             copilotEnabled: this.copilotReviewEnabled,
             copilotTimeoutMs: this.copilotReviewTimeoutMs,
+            baselineDirty: this.baselineDirty[repoPath] ?? {},
           }
         : undefined;
 
